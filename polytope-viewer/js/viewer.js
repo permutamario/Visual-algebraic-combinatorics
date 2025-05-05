@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Import BufferGeometryUtils for vertex merging
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { isMobileDevice } from './mobile.js';
 
 let scene, camera, renderer, controls;
 let currentPolytopeMesh = null; // Mesh for faces using multi-material groups
@@ -19,7 +20,9 @@ let captureFrameFunction = null; // Function to capture frames for GIF recording
 // Smaller values are less aggressive but might not fix all gaps.
 // Larger values might distort the geometry. Start small.
 const MERGE_VERTEX_TOLERANCE = 1e-3; // e.g., 0.000001 units
-const VERTEX_SIZE = 0.03 //The size of the vertices.
+
+// Adjust vertex size based on device
+const VERTEX_SIZE = isMobileDevice() ? 0.025 : 0.03;
 
 // --- Initialization ---
 export function init(canvas) {
@@ -34,14 +37,15 @@ export function init(canvas) {
     camera = new THREE.PerspectiveCamera(75, aspectRatio, 0.1, 1000);
     camera.position.z = 3;
 
-    // Renderer
+    // Renderer with mobile optimizations
     renderer = new THREE.WebGLRenderer({
         canvas: canvas,
-        antialias: true,
-        preserveDrawingBuffer: true
+        antialias: !isMobileDevice(), // Only use antialiasing on desktop
+        preserveDrawingBuffer: true,
+        powerPreference: 'high-performance' // Request high performance GPU
     });
     renderer.setSize(initialWidth, initialHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(isMobileDevice() ? Math.min(1.5, window.devicePixelRatio) : window.devicePixelRatio);
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -51,13 +55,14 @@ export function init(canvas) {
     headLight.position.set(0, 0, 1);
     camera.add(headLight);
     scene.add(camera); // Add camera to scene to ensure headlight works
-    headLight.visible = false
+    headLight.visible = false;
 
-    // Controls
+    // Controls with mobile optimizations
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.1;
-    controls.rotateSpeed = 0.5;
+    controls.rotateSpeed = isMobileDevice() ? 0.4 : 0.5; // Slower rotation for mobile
+    controls.zoomSpeed = isMobileDevice() ? 0.7 : 1.0;   // Slower zoom for mobile
 
     // Edge Material
     edgeMaterial = new THREE.LineBasicMaterial({ color: 0x1a1a1a });
@@ -69,8 +74,17 @@ export function init(canvas) {
 
     // Event Listeners & Startup
     window.addEventListener('resize', onWindowResize);
+    window.addEventListener('orientationchange', () => {
+        // Wait for orientation change to complete
+        setTimeout(onWindowResize, 300);
+    });
+    
+    // Initial resize
     setTimeout(onWindowResize, 100);
     animate();
+    
+    // Return renderer and controls for potential external modification
+    return { renderer, controls };
 }
 
 // Helper to check readiness
@@ -197,20 +211,28 @@ export function updatePolytopeMesh(polytopeData) {
 
     // --- Create Materials (One per *Group*, i.e., per original valid face) ---
     const defaultOpacity = 0.9; // Reset opacity for new mesh
+    
+    // Use simpler materials on mobile
+    const materialType = isMobileDevice() ? 
+        THREE.MeshLambertMaterial : // Simpler, faster material for mobile
+        THREE.MeshStandardMaterial;  // Higher quality material for desktop
+    
     for (let i = 0; i < faceGroups.length; i++) {
-        const material = new THREE.MeshStandardMaterial({
+        let materialOptions = {
             color: 0xffffff, // Default color
-            metalness: 0.1,
-            roughness: 0.75,
             side: THREE.DoubleSide,
             transparent: true,
             opacity: defaultOpacity,
-            depthWrite: true, // Important for correct depth sorting with transparency
-            // Consider adding polygonOffset for Z-fighting if merging isn't enough
-            // polygonOffset: true,
-            // polygonOffsetFactor: 1, // Adjust as needed
-            // polygonOffsetUnits: 1
-        });
+            depthWrite: true // Important for correct depth sorting with transparency
+        };
+        
+        // Add PBR properties only if using MeshStandardMaterial
+        if (materialType === THREE.MeshStandardMaterial) {
+            materialOptions.metalness = 0.1;
+            materialOptions.roughness = 0.75;
+        }
+        
+        const material = new materialType(materialOptions);
         faceMaterials.push(material);
     }
 
@@ -250,9 +272,12 @@ export function updatePolytopeMesh(polytopeData) {
     scene.add(currentPolytopeMesh);
 
     // --- Create Vertices as Spheres ---
+    // On mobile, use fewer segments for better performance
+    const sphereSegments = isMobileDevice() ? 6 : 8;
+    
     if (polytopeData.vertices && polytopeData.vertices.length > 0) {
         // Create a small sphere geometry for each vertex
-        const sphereGeometry = new THREE.SphereGeometry(VERTEX_SIZE, 8, 8);
+        const sphereGeometry = new THREE.SphereGeometry(VERTEX_SIZE, sphereSegments, sphereSegments);
         
         // Create a group to hold all vertex spheres
         const verticesGroup = new THREE.Group();
@@ -393,8 +418,11 @@ export function updateVertexSize(size) {
     // Remove old vertex group
     scene.remove(currentVerticesMesh);
     
+    // Use fewer segments on mobile
+    const sphereSegments = isMobileDevice() ? 6 : 8;
+    
     // Create new sphere geometry with updated size
-    const sphereGeometry = new THREE.SphereGeometry(size, 8, 8);
+    const sphereGeometry = new THREE.SphereGeometry(size, sphereSegments, sphereSegments);
     
     // Create a new group
     const verticesGroup = new THREE.Group();
@@ -467,15 +495,174 @@ export function exportToPNG() {
     }
 }
 
+// Mobile-optimized GIF export
+export function exportToGIF(duration = 3, fps = 15, quality = 10) {
+    console.log(`Creating GIF with: ${duration}s duration, ${fps} FPS, quality ${quality}`);
+    
+    // Use lower quality settings for mobile
+    const useMobileSettings = isMobileDevice();
+    const actualFps = useMobileSettings ? Math.min(fps, 12) : fps; // Lower FPS for mobile
+    const actualQuality = useMobileSettings ? Math.min(quality, 5) : quality; // Lower quality for mobile
+    const actualDuration = useMobileSettings ? Math.min(duration, 2) : duration; // Shorter duration for mobile
+  
+    if (!renderer || !scene || !camera) {
+        console.error("Cannot export: Viewer not initialized.");
+        alert("Cannot export GIF: Viewer not ready.");
+        return;
+    }
+  
+    // Check if GIF.js is available
+    if (typeof GIF === 'undefined') {
+        console.error("GIF.js library not loaded.");
+        alert("GIF export requires the GIF.js library which isn't loaded correctly.");
+        return;
+    }
+  
+    try {
+        // Create progress indicator
+        const progressDiv = document.createElement('div');
+        progressDiv.style.position = 'absolute';
+        progressDiv.style.top = '50%';
+        progressDiv.style.left = '50%';
+        progressDiv.style.transform = 'translate(-50%, -50%)';
+        progressDiv.style.padding = '20px';
+        progressDiv.style.background = 'rgba(0,0,0,0.7)';
+        progressDiv.style.color = 'white';
+        progressDiv.style.borderRadius = '5px';
+        progressDiv.style.zIndex = '1000';
+        progressDiv.textContent = 'Recording frames...';
+        document.body.appendChild(progressDiv);
+    
+        // The current rotation states
+        const wasAutorotating = autoRotationEnabled;
+    
+        // Force enable autorotation
+        toggleAutorotation(true);
+    
+        // Reset rotations for a clean start
+        if (currentPolytopeMesh) currentPolytopeMesh.rotation.set(0, 0, 0);
+        if (currentEdgesMesh) currentEdgesMesh.rotation.set(0, 0, 0);
+        if (currentVerticesMesh) currentVerticesMesh.rotation.set(0, 0, 0);
+    
+        // Create a GIF recorder
+        const gif = new GIF({
+            workers: useMobileSettings ? 1 : 2, // Use fewer workers on mobile
+            quality: actualQuality,
+            width: useMobileSettings ? Math.min(renderer.domElement.width, 480) : renderer.domElement.width,
+            height: useMobileSettings ? Math.min(renderer.domElement.height, 480) : renderer.domElement.height,
+            workerScript: './vendor/gif.js/gif.worker.js'
+        });
+    
+        // Handle GIF completion
+        gif.on('finished', function(blob) {
+            console.log("GIF processing complete!");
+            
+            // Remove progress indicator
+            document.body.removeChild(progressDiv);
+            
+            // Restore original state
+            if (!wasAutorotating) {
+                toggleAutorotation(false);
+            }
+            
+            // Create download link
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'polytope_animation.gif';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Clean up
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+        });
+    
+        // Handle GIF progress
+        gif.on('progress', function(p) {
+            progressDiv.textContent = `Processing GIF: ${Math.round(p * 100)}%`;
+        });
+    
+        const totalFrames = Math.floor(actualDuration * actualFps);
+        console.log(`Will capture ${totalFrames} frames`);
+
+        let framesCaptured = 0;
+
+        // Calculate the rotation increment for a more reasonable rotation
+        // Adjust this value to control rotation speed - lower = slower
+        const totalRotation = Math.PI*0.4; // Half turn (180 degrees) for the full animation
+        const rotationIncrement = totalRotation / totalFrames;
+
+        function captureFrame() {
+            // Render current frame
+            renderer.render(scene, camera);
+            
+            // Add frame to the GIF
+            gif.addFrame(renderer.domElement, { copy: true, delay: 1000 / actualFps });
+            framesCaptured++;
+            progressDiv.textContent = `Recording: ${Math.round((framesCaptured / totalFrames) * 100)}%`;
+            
+            // Check if we need more frames
+            if (framesCaptured < totalFrames) {
+                // Apply a gentler rotation
+                currentPolytopeMesh.rotation.y += rotationIncrement;
+                currentPolytopeMesh.rotation.x += rotationIncrement * 0.2; // Much gentler on X axis
+                currentPolytopeMesh.rotation.z += rotationIncrement * 0.1; // Very subtle on Z axis
+                
+                // Apply to edges and vertices
+                if (currentEdgesMesh) currentEdgesMesh.rotation.copy(currentPolytopeMesh.rotation);
+                if (currentVerticesMesh) currentVerticesMesh.rotation.copy(currentPolytopeMesh.rotation);
+                
+                // Schedule next frame capture
+                setTimeout(captureFrame, 1000 / actualFps);
+            } else {
+                // We're done capturing frames
+                console.log(`Finished capturing ${framesCaptured} frames, rendering GIF`);
+                progressDiv.textContent = "Processing GIF...";
+                gif.render();
+            }
+        }
+    
+        // Start capturing
+        captureFrame();
+    
+    } catch (e) {
+        console.error("Error in GIF export:", e);
+        alert("Error creating GIF: " + e.message);
+    }
+}
+
 // --- Internal Helpers ---
 function onWindowResize() {
     if (!renderer || !camera) return;
+    
     const canvas = renderer.domElement;
-    const controlsElement = document.getElementById('controls');
+    
+    // Get current dimensions
     const container = canvas.parentElement || document.body;
-    const controlsWidth = controlsElement ? controlsElement.offsetWidth : 0;
-    const width = Math.max(1, container.clientWidth - controlsWidth);
-    const height = Math.max(1, container.clientHeight);
+    let width = container.clientWidth;
+    let height = container.clientHeight;
+    
+    // In mobile portrait mode, we might need to adjust for control panel
+    if (isMobileDevice()) {
+        const controlsPanel = document.getElementById('controls');
+        const isControlsVisible = controlsPanel && controlsPanel.classList.contains('visible');
+        
+        if (isControlsVisible && window.innerWidth < window.innerHeight) {
+            // If controls are visible in portrait mode, adjust canvas height
+            height = Math.max(1, window.innerHeight - controlsPanel.offsetHeight);
+        } else {
+            // Full screen if controls are hidden
+            height = window.innerHeight;
+        }
+        width = window.innerWidth;
+    }
+    
+    // Ensure minimum dimensions
+    width = Math.max(1, width);
+    height = Math.max(1, height);
+    
+    // Only resize if dimensions have changed
     if (canvas.width !== width || canvas.height !== height) {
         renderer.setSize(width, height);
         camera.aspect = width / height;
@@ -491,10 +678,13 @@ function animate() {
   
   // Handle autorotation if enabled
   if (autoRotationEnabled && currentPolytopeMesh) {
+    // Mobile-friendly rotation speed (slightly slower on mobile)
+    const rotationFactor = isMobileDevice() ? 0.8 : 1.0;
+    
     // Rotate around multiple axes for a more interesting effect
-    currentPolytopeMesh.rotation.y += 0.005;  // Primary rotation
-    currentPolytopeMesh.rotation.x += 0.002;  // Slight tilt on X axis
-    currentPolytopeMesh.rotation.z += 0.001;  // Minimal rotation on Z axis
+    currentPolytopeMesh.rotation.y += 0.005 * rotationFactor;  // Primary rotation
+    currentPolytopeMesh.rotation.x += 0.002 * rotationFactor;  // Slight tilt on X axis
+    currentPolytopeMesh.rotation.z += 0.001 * rotationFactor;  // Minimal rotation on Z axis
     
     // Apply the same rotation to edges and vertices to keep them aligned
     if (currentEdgesMesh) {
@@ -513,137 +703,10 @@ function animate() {
     }
   }
   
-  // Render the scene
-  if (renderer && scene && camera) renderer.render(scene, camera);
-}
-
-// In viewer.js
-export function exportToGIF(duration = 10, fps = 40, quality = 1) {
-  console.log(`Creating GIF with: ${duration}s duration, ${fps} FPS, quality ${quality}`);
-  
-  if (!renderer || !scene || !camera) {
-    console.error("Cannot export: Viewer not initialized.");
-    alert("Cannot export GIF: Viewer not ready.");
-    return;
-  }
-  
-  // Check if GIF.js is available
-  if (typeof GIF === 'undefined') {
-    console.error("GIF.js library not loaded.");
-    alert("GIF export requires the GIF.js library which isn't loaded correctly.");
-    return;
-  }
-  
-  try {
-    // Create progress indicator
-    const progressDiv = document.createElement('div');
-    progressDiv.style.position = 'absolute';
-    progressDiv.style.top = '50%';
-    progressDiv.style.left = '50%';
-    progressDiv.style.transform = 'translate(-50%, -50%)';
-    progressDiv.style.padding = '20px';
-    progressDiv.style.background = 'rgba(0,0,0,0.7)';
-    progressDiv.style.color = 'white';
-    progressDiv.style.borderRadius = '5px';
-    progressDiv.style.zIndex = '1000';
-    progressDiv.textContent = 'Recording frames...';
-    document.body.appendChild(progressDiv);
-    
-    // The current rotation states
-    const wasAutorotating = autoRotationEnabled;
-    
-    // Force enable autorotation
-    toggleAutorotation(true);
-    
-    // Reset rotations for a clean start
-    if (currentPolytopeMesh) currentPolytopeMesh.rotation.set(0, 0, 0);
-    if (currentEdgesMesh) currentEdgesMesh.rotation.set(0, 0, 0);
-    if (currentVerticesMesh) currentVerticesMesh.rotation.set(0, 0, 0);
-    
-    // Create a GIF recorder
-    const gif = new GIF({
-      workers: 2,
-      quality: quality,
-      width: renderer.domElement.width,
-      height: renderer.domElement.height,
-      workerScript: './vendor/gif.js/gif.worker.js'
-    });
-    
-    // Handle GIF completion
-    gif.on('finished', function(blob) {
-      console.log("GIF processing complete!");
-      
-      // Remove progress indicator
-      document.body.removeChild(progressDiv);
-      
-      // Restore original state
-      if (!wasAutorotating) {
-        toggleAutorotation(false);
-      }
-      
-      // Create download link
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'polytope_animation.gif';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Clean up
-      setTimeout(() => URL.revokeObjectURL(url), 100);
-    });
-    
-    // Handle GIF progress
-    gif.on('progress', function(p) {
-      progressDiv.textContent = `Processing GIF: ${Math.round(p * 100)}%`;
-    });
-    
-      const totalFrames = Math.floor(duration * fps);
-      console.log(`Will capture ${totalFrames} frames`);
-
-      let framesCaptured = 0;
-
-      // Calculate the rotation increment for a more reasonable rotation
-      // Adjust this value to control rotation speed - lower = slower
-      const totalRotation = Math.PI*0.4; // Half turn (180 degrees) for the full animation
-      const rotationIncrement = totalRotation / totalFrames;
-
-      function captureFrame() {
-	  // Render current frame
-	  renderer.render(scene, camera);
-	  
-	  // Add frame to the GIF
-	  gif.addFrame(renderer.domElement, { copy: true, delay: 1000 / fps });
-	  framesCaptured++;
-	  progressDiv.textContent = `Recording: ${Math.round((framesCaptured / totalFrames) * 100)}%`;
-	  
-	  // Check if we need more frames
-	  if (framesCaptured < totalFrames) {
-	      // Apply a gentler rotation
-	      currentPolytopeMesh.rotation.y += rotationIncrement;
-	      currentPolytopeMesh.rotation.x += rotationIncrement * 0.2; // Much gentler on X axis
-	      currentPolytopeMesh.rotation.z += rotationIncrement * 0.1; // Very subtle on Z axis
-	      
-	      // Apply to edges and vertices
-	      if (currentEdgesMesh) currentEdgesMesh.rotation.copy(currentPolytopeMesh.rotation);
-	      if (currentVerticesMesh) currentVerticesMesh.rotation.copy(currentPolytopeMesh.rotation);
-	      
-	      // Schedule next frame capture
-	      setTimeout(captureFrame, 1000 / fps);
-	  } else {
-	      // We're done capturing frames
-	      console.log(`Finished capturing ${framesCaptured} frames, rendering GIF`);
-	      progressDiv.textContent = "Processing GIF...";
-	      gif.render();
-	  }
-      }
-    
-    // Start capturing
-    captureFrame();
-    
-  } catch (e) {
-    console.error("Error in GIF export:", e);
-    alert("Error creating GIF: " + e.message);
+  // Render the scene - only render when needed on mobile for performance
+  if (renderer && scene && camera) {
+    if (!isMobileDevice() || autoRotationEnabled || controls.update()) {
+      renderer.render(scene, camera);
+    }
   }
 }

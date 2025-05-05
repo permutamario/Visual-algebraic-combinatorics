@@ -1,6 +1,7 @@
 import * as UI from './ui.js';
 import * as Loader from './loader.js';
 import * as Viewer from './viewer.js';
+import { initMobileFeatures, optimizeRendererForMobile, enhanceTouchControls, isMobileDevice, showMobileLoading } from './mobile.js';
 
 const POLYTOPE_LIST_URL = './polytopes/data/polytope_list.json'; // Path relative to index.html
 
@@ -74,12 +75,17 @@ let availablePolytopesList = []; // Will be populated by fetching the manifest
 let defaultPolytope = null;      // Will be determined after fetching list
 let currentColorScheme = COLOR_SCHEMES.find(s => s.name === DEFAULT_COLOR_SCHEME_NAME) || COLOR_SCHEMES[0];
 let autoRotationEnabled = false; // Track autorotation state
+let renderer = null;
+let controls = null;
 
 // --- Initialization ---
 // Make initApp async to handle fetching the list
 async function initApp() {
     console.log("Initializing Polytope Viewer...");
     UI.showLoading(true); // Show loading indicator early
+    
+    // Initialize mobile features first
+    initMobileFeatures();
 
     // 1. Fetch the list of available polytopes
     try {
@@ -102,6 +108,9 @@ async function initApp() {
         console.error("Failed to load or parse polytope list:", error);
         UI.showErrorMessage(`Error loading polytope list: ${error.message}. Cannot initialize viewer.`);
         UI.showLoading(false);
+        if (isMobileDevice()) {
+            showMobileLoading(false);
+        }
         return; // Stop initialization if list fails
     }
 
@@ -112,10 +121,27 @@ async function initApp() {
     if (!canvas) {
         console.error("Canvas element #viewer-canvas not found!");
         UI.showErrorMessage("Fatal Error: Canvas not found.");
-        UI.showLoading(false); // Hide loading indicator on error
+        UI.showLoading(false);
+        if (isMobileDevice()) {
+            showMobileLoading(false);
+        }
         return;
     }
-    Viewer.init(canvas);
+    
+    const viewerResult = Viewer.init(canvas);
+    renderer = viewerResult?.renderer;
+    controls = viewerResult?.controls;
+    
+    // Apply mobile optimizations to the renderer if needed
+    if (isMobileDevice() && renderer) {
+        optimizeRendererForMobile(renderer);
+    }
+    
+    // Enhance touch controls if needed
+    if (isMobileDevice() && controls) {
+        enhanceTouchControls(controls);
+    }
+    
     console.log("Viewer initialized.");
 
     // 3. Populate UI dropdowns using the fetched list
@@ -126,12 +152,11 @@ async function initApp() {
 
     // 4. Set up UI event listeners (including new ones for vertex emphasis and autorotation)
     UI.setupEventListeners({
-        onColorChange: handleFaceColorChange,
-        onOpacityChange: Viewer.updateFaceOpacity,
-        onVertexEmphasisToggle: handleVertexEmphasisToggle,
-        onVertexColorChange: handleVertexColorChange,
-        onAutorotateToggle: handleAutorotationToggle,
-        onExportClick: Viewer.exportToPNG,
+	onColorChange: handleFaceColorChange,
+	onOpacityChange: Viewer.updateFaceOpacity,
+	onVertexEmphasisToggle: handleVertexEmphasisToggle,
+	onVertexColorChange: handleVertexColorChange,
+	onAutorotateToggle: handleAutorotationToggle,
 	onExportClick: handleExportClick,
 	onExportGifClick: handleExportGifClick,
     });
@@ -149,7 +174,10 @@ async function initApp() {
     } else {
         console.warn("No default polytope determined.");
         UI.showErrorMessage("No polytopes available to display.");
-        UI.showLoading(false); // Hide loading indicator if no default is loaded
+        UI.showLoading(false);
+        if (isMobileDevice()) {
+            showMobileLoading(false);
+        }
     }
 }
 
@@ -201,7 +229,6 @@ function handleVertexEmphasisToggle(enabled) {
     }
 }
 
-
 /** Handles vertex color change */
 function handleVertexColorChange(color) {
     console.log(`Vertex color changed to: ${color}`);
@@ -219,6 +246,56 @@ function handleAutorotationToggle(enabled) {
     }
 }
 
+// Export handlers
+function handleExportClick() {
+    console.log("Export PNG handler called");
+    if (Viewer.isReady()) {
+        // On mobile, automatically collapse the controls panel first
+        if (isMobileDevice()) {
+            const controlsPanel = document.getElementById('controls');
+            if (controlsPanel && controlsPanel.classList.contains('visible')) {
+                const toggleButton = document.getElementById('mobile-controls-toggle');
+                if (toggleButton) toggleButton.click();
+            }
+            // Show loading indicator
+            showMobileLoading(true);
+            
+            // Wait a moment for UI to update before capturing
+            setTimeout(() => {
+                Viewer.exportToPNG();
+                showMobileLoading(false);
+            }, 300);
+        } else {
+            // Standard desktop behavior
+            Viewer.exportToPNG();
+        }
+    } else {
+        UI.showErrorMessage('Cannot export PNG: Viewer not ready.');
+    }
+}
+
+function handleExportGifClick() {
+    console.log("Export GIF handler called");
+    if (Viewer.isReady()) {
+        // On mobile, automatically collapse the controls panel first
+        if (isMobileDevice()) {
+            const controlsPanel = document.getElementById('controls');
+            if (controlsPanel && controlsPanel.classList.contains('visible')) {
+                const toggleButton = document.getElementById('mobile-controls-toggle');
+                if (toggleButton) toggleButton.click();
+            }
+            
+            // Use shorter duration and lower quality for mobile
+            Viewer.exportToGIF(2, 12, 5);
+        } else {
+            // Higher quality for desktop
+            Viewer.exportToGIF(3, 15);
+        }
+    } else {
+        UI.showErrorMessage('Cannot export GIF: Viewer not ready.');
+    }
+}
+
 // --- Core Logic ---
 
 /** Loads data and updates viewer, handles UI states. */
@@ -226,6 +303,11 @@ async function loadAndDisplayPolytope(filename) {
     if (!filename) return;
 
     UI.showLoading(true);
+    // Only show mobile loading if we're on mobile
+    if (isMobileDevice()) {
+        showMobileLoading(true);
+    }
+    
     UI.showErrorMessage('');
     currentPolytopeFilename = filename; // Track current selection attempt
 
@@ -263,6 +345,9 @@ async function loadAndDisplayPolytope(filename) {
         Viewer.updatePolytopeMesh(null); // Clear the viewer
     } finally {
         UI.showLoading(false);
+        if (isMobileDevice()) {
+            showMobileLoading(false);
+        }
     }
 }
 
@@ -285,27 +370,6 @@ function applyCurrentColorScheme() {
         // Use the colors array from the scheme object
         Viewer.applyColorScheme(currentColorScheme.colors);
     }
-}
-
-function handleExportGifClick() {
-  console.log("Export GIF handler called");
-  if (Viewer.isReady()) {
-    console.log("Calling viewer.exportToGIF()");
-    Viewer.exportToGIF(3, 15);
-  } else {
-    console.log("Viewer not ready");
-    UI.showErrorMessage('Cannot export GIF: Viewer not ready.');
-  }
-}
-
-// Add this function to main.js
-function handleExportClick() {
-  console.log("Export PNG handler called");
-  if (Viewer.isReady()) {
-    Viewer.exportToPNG();
-  } else {
-    UI.showErrorMessage('Cannot export PNG: Viewer not ready.');
-  }
 }
 
 // --- Start the Application ---

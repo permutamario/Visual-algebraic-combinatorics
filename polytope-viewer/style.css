@@ -7,7 +7,8 @@ body {
 }
 
 #controls {
-    width: 250px; /* Fixed width for controls */
+    width: 250px; /* Fixed width for controls - modify this value to change panel width */
+    min-width: 250px; /* Prevent shrinking */
     padding: 15px;
     box-sizing: border-box;
     overflow-y: auto; /* Allow scrolling if controls overflow */
@@ -16,6 +17,8 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px; /* Space between control elements */
+    position: relative; /* Position explicitly stated */
+    /* No transitions here */
 }
 
 #controls label {
@@ -96,6 +99,7 @@ label[for="vertex-color-picker"] {
 #viewer-canvas {
     flex-grow: 1; /* Canvas takes remaining space */
     display: block; /* Remove extra space below canvas */
+    touch-action: none; /* Prevent browser gestures on touch devices */
 }
 
 #loading-status,
@@ -112,18 +116,195 @@ label[for="vertex-color-picker"] {
     color: #f44336;
 }
 
-/* Responsive adjustments */
+/* Collapsible sections for mobile */
+.control-section {
+    margin-bottom: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.control-section-header {
+    background-color: #e0e0e0;
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+}
+
+.control-section-content {
+    padding: 10px;
+    display: none;
+    background-color: #f9f9f9;
+}
+
+.control-section.open .control-section-content {
+    display: block;
+}
+
+.control-section-header:after {
+    content: "▼";
+    font-size: 12px;
+}
+
+.control-section.open .control-section-header:after {
+    content: "▲";
+}
+
+/* Mobile toggle button - hidden by default */
+#mobile-controls-toggle {
+    display: none;
+}
+
+/* Loading spinner */
+.loader {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #4285f4;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin-top: -20px;
+    margin-left: -20px;
+    z-index: 1000;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Floating action buttons - hidden by default */
+.fab-container {
+    display: none;
+}
+
+.fab {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #4285f4;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+.fab:hover {
+    background-color: #3367d6;
+}
+
+/* Mobile-specific styles - ONLY apply in media query */
 @media (max-width: 768px) {
     body {
         flex-direction: column;
     }
     
+    #mobile-controls-toggle {
+        display: flex;
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        width: 40px;
+        height: 40px;
+        font-size: 24px;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    
     #controls {
-        width: 100%;
-        max-height: 40vh;
+        position: fixed;
+        width: 100%; /* Full width on mobile */
+        min-width: auto; /* Allow any width on mobile */
+        max-height: 60vh;
+        border-right: none;
+        border-bottom: 1px solid #ccc;
+        transform: translateY(-100%); /* Start hidden on mobile */
+        transition: transform 0.3s ease;
+    }
+    
+    #controls.visible {
+        transform: translateY(0); /* Show when visible class is added */
     }
     
     #viewer-canvas {
-        height: 60vh;
+        height: 100vh;
+        width: 100%;
+    }
+    
+    /* Make buttons and controls larger for touch */
+    #controls select,
+    #controls input,
+    #controls button {
+        padding: 12px;
+        font-size: 16px; /* Minimum font size for iOS to prevent zoom */
+    }
+    
+    #controls input[type="color"] {
+        height: 40px;
+    }
+    
+    /* Improved range slider for touch */
+    input[type="range"] {
+        -webkit-appearance: none;
+        height: 20px;
+        background: #d3d3d3;
+        border-radius: 10px;
+    }
+    
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: #4285f4;
+        cursor: pointer;
+    }
+    
+    input[type="range"]::-moz-range-thumb {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: #4285f4;
+        cursor: pointer;
+    }
+    
+    /* Show FABs on mobile */
+    .fab-container {
+        display: flex;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        flex-direction: column;
+        gap: 10px;
+        z-index: 100;
+    }
+    
+    /* Hide original export buttons */
+    #export-button, 
+    #export-gif-button {
+        display: none;
+    }
+}
+
+/* Landscape orientation adjustments */
+@media (max-width: 768px) and (orientation: landscape) {
+    #controls {
+        max-height: 80vh;
     }
 }

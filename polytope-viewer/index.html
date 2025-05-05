@@ -2,20 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Enhanced 3D Polytope Viewer</title>
     <link rel="stylesheet" href="style.css">
     <!-- Add GIF.js libraries before importmap -->
-    <script src="./vendor/gif.js/gif.js"></script>
+    <script src="./vendor/gif.js/gif.js" data-source-map="false"></script>
     <script>
       console.log("GIF constructor available:", typeof GIF);
       if (typeof GIF === 'undefined') {
-	  console.error("GIF.js library not loaded properly");
+          console.error("GIF.js library not loaded properly");
       }
     </script>
 </head>
 <body>
-  <div id="controls">
+    <!-- Controls panel is shown by default on desktop -->
+    <div id="controls">
         <label for="polytope-select">Select Polytope:</label>
         <select id="polytope-select"></select>
 
