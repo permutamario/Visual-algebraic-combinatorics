@@ -565,7 +565,7 @@ export function exportToGIF(duration = 3, fps = 15) {
     quality: 10,
     width: renderer.domElement.width,
     height: renderer.domElement.height,
-    workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
+    workerScript: './vendor/gif.js/gif.worker.js'
   });
   
   // Handle GIF completion
