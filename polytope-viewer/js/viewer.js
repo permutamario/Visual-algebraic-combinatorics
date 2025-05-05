@@ -518,8 +518,8 @@ function animate() {
 }
 
 // In viewer.js
-export function exportToGIF(duration = 3, fps = 15) {
-  console.log("Starting GIF export process...");
+export function exportToGIF(duration = 10, fps = 40, quality = 1) {
+  console.log(`Creating GIF with: ${duration}s duration, ${fps} FPS, quality ${quality}`);
   
   if (!renderer || !scene || !camera) {
     console.error("Cannot export: Viewer not initialized.");
@@ -534,105 +534,116 @@ export function exportToGIF(duration = 3, fps = 15) {
     return;
   }
   
-  // Create progress indicator
-  const progressDiv = document.createElement('div');
-  progressDiv.style.position = 'absolute';
-  progressDiv.style.top = '50%';
-  progressDiv.style.left = '50%';
-  progressDiv.style.transform = 'translate(-50%, -50%)';
-  progressDiv.style.padding = '20px';
-  progressDiv.style.background = 'rgba(0,0,0,0.7)';
-  progressDiv.style.color = 'white';
-  progressDiv.style.borderRadius = '5px';
-  progressDiv.style.zIndex = '1000';
-  progressDiv.textContent = 'Recording frames...';
-  document.body.appendChild(progressDiv);
-  
-  // The current rotation states
-  const wasAutorotating = autoRotationEnabled;
-  
-  // Force enable autorotation
-  toggleAutorotation(true);
-  
-  // Reset rotations for a clean start
-  if (currentPolytopeMesh) currentPolytopeMesh.rotation.set(0, 0, 0);
-  if (currentEdgesMesh) currentEdgesMesh.rotation.set(0, 0, 0);
-  if (currentVerticesMesh) currentVerticesMesh.rotation.set(0, 0, 0);
-  
-  // Create a GIF recorder
-  const gifRecorder = new GIF({
-    workers: 2,
-    quality: 10,
-    width: renderer.domElement.width,
-    height: renderer.domElement.height,
-    workerScript: './vendor/gif.js/gif.worker.js'
-  });
-  
-  // Handle GIF completion
-  gifRecorder.on('finished', function(blob) {
-    console.log("GIF processing complete!");
+  try {
+    // Create progress indicator
+    const progressDiv = document.createElement('div');
+    progressDiv.style.position = 'absolute';
+    progressDiv.style.top = '50%';
+    progressDiv.style.left = '50%';
+    progressDiv.style.transform = 'translate(-50%, -50%)';
+    progressDiv.style.padding = '20px';
+    progressDiv.style.background = 'rgba(0,0,0,0.7)';
+    progressDiv.style.color = 'white';
+    progressDiv.style.borderRadius = '5px';
+    progressDiv.style.zIndex = '1000';
+    progressDiv.textContent = 'Recording frames...';
+    document.body.appendChild(progressDiv);
     
-    // Remove progress indicator
-    document.body.removeChild(progressDiv);
+    // The current rotation states
+    const wasAutorotating = autoRotationEnabled;
     
-    // Restore original state
-    if (!wasAutorotating) {
-      toggleAutorotation(false);
-    }
+    // Force enable autorotation
+    toggleAutorotation(true);
     
-    // Create download link
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'polytope_animation.gif';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Reset rotations for a clean start
+    if (currentPolytopeMesh) currentPolytopeMesh.rotation.set(0, 0, 0);
+    if (currentEdgesMesh) currentEdgesMesh.rotation.set(0, 0, 0);
+    if (currentVerticesMesh) currentVerticesMesh.rotation.set(0, 0, 0);
     
-    // Clean up
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-  });
-  
-  // Handle GIF progress
-  gifRecorder.on('progress', function(p) {
-    progressDiv.textContent = `Processing GIF: ${Math.round(p * 100)}%`;
-  });
-  
-  // Capture frames
-  const totalFrames = fps * duration;
-  let framesCaptured = 0;
-  
-  function captureFrame() {
-    // Render current frame
-    renderer.render(scene, camera);
+    // Create a GIF recorder
+    const gif = new GIF({
+      workers: 2,
+      quality: quality,
+      width: renderer.domElement.width,
+      height: renderer.domElement.height,
+      workerScript: './vendor/gif.js/gif.worker.js'
+    });
     
-    // Add frame to the GIF
-    gifRecorder.addFrame(renderer.domElement, { copy: true, delay: 1000 / fps });
-    framesCaptured++;
-    progressDiv.textContent = `Recording: ${Math.round((framesCaptured / totalFrames) * 100)}%`;
-    
-    // Check if we need more frames
-    if (framesCaptured < totalFrames) {
-      // Continue animation
-      currentPolytopeMesh.rotation.y += 0.005 * (360 / (fps * duration)) * Math.PI / 180;
-      currentPolytopeMesh.rotation.x += 0.002 * (360 / (fps * duration)) * Math.PI / 180;
-      currentPolytopeMesh.rotation.z += 0.001 * (360 / (fps * duration)) * Math.PI / 180;
+    // Handle GIF completion
+    gif.on('finished', function(blob) {
+      console.log("GIF processing complete!");
       
-      // Apply to edges and vertices
-      if (currentEdgesMesh) currentEdgesMesh.rotation.copy(currentPolytopeMesh.rotation);
-      if (currentVerticesMesh) currentVerticesMesh.rotation.copy(currentPolytopeMesh.rotation);
+      // Remove progress indicator
+      document.body.removeChild(progressDiv);
       
-      // Schedule next frame
-      setTimeout(captureFrame, 1000 / fps);
-    } else {
-      // We're done capturing frames
-      console.log("Finished capturing frames, rendering GIF");
-      progressDiv.textContent = "Processing GIF...";
-      gifRecorder.render();
-    }
+      // Restore original state
+      if (!wasAutorotating) {
+        toggleAutorotation(false);
+      }
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'polytope_animation.gif';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    });
+    
+    // Handle GIF progress
+    gif.on('progress', function(p) {
+      progressDiv.textContent = `Processing GIF: ${Math.round(p * 100)}%`;
+    });
+    
+      const totalFrames = Math.floor(duration * fps);
+      console.log(`Will capture ${totalFrames} frames`);
+
+      let framesCaptured = 0;
+
+      // Calculate the rotation increment for a more reasonable rotation
+      // Adjust this value to control rotation speed - lower = slower
+      const totalRotation = Math.PI*0.4; // Half turn (180 degrees) for the full animation
+      const rotationIncrement = totalRotation / totalFrames;
+
+      function captureFrame() {
+	  // Render current frame
+	  renderer.render(scene, camera);
+	  
+	  // Add frame to the GIF
+	  gif.addFrame(renderer.domElement, { copy: true, delay: 1000 / fps });
+	  framesCaptured++;
+	  progressDiv.textContent = `Recording: ${Math.round((framesCaptured / totalFrames) * 100)}%`;
+	  
+	  // Check if we need more frames
+	  if (framesCaptured < totalFrames) {
+	      // Apply a gentler rotation
+	      currentPolytopeMesh.rotation.y += rotationIncrement;
+	      currentPolytopeMesh.rotation.x += rotationIncrement * 0.2; // Much gentler on X axis
+	      currentPolytopeMesh.rotation.z += rotationIncrement * 0.1; // Very subtle on Z axis
+	      
+	      // Apply to edges and vertices
+	      if (currentEdgesMesh) currentEdgesMesh.rotation.copy(currentPolytopeMesh.rotation);
+	      if (currentVerticesMesh) currentVerticesMesh.rotation.copy(currentPolytopeMesh.rotation);
+	      
+	      // Schedule next frame capture
+	      setTimeout(captureFrame, 1000 / fps);
+	  } else {
+	      // We're done capturing frames
+	      console.log(`Finished capturing ${framesCaptured} frames, rendering GIF`);
+	      progressDiv.textContent = "Processing GIF...";
+	      gif.render();
+	  }
+      }
+    
+    // Start capturing
+    captureFrame();
+    
+  } catch (e) {
+    console.error("Error in GIF export:", e);
+    alert("Error creating GIF: " + e.message);
   }
-  
-  // Start capturing
-  console.log("Starting frame capture");
-  captureFrame();
 }

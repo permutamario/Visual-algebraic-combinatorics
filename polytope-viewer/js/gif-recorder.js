@@ -7,7 +7,7 @@ let targetFrames = 0;
 
 export function startRecording(renderer, scene, camera, options = {}) {
   const { 
-    duration = 3, // seconds
+    duration = 10, // seconds
     fps = 15,
     quality = 10,
     onProgress = () => {},
