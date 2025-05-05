@@ -1,11 +1,15 @@
+/**
+ * main.js - Modified to check device type before initializing UI
+ */
+
 import * as UI from './ui.js';
 import * as Loader from './loader.js';
 import * as Viewer from './viewer.js';
-import { initMobileFeatures, optimizeRendererForMobile, enhanceTouchControls, isMobileDevice, showMobileLoading } from './mobile.js';
+import { isMobileDevice, initMobileFeatures, optimizeRendererForMobile, enhanceTouchControls, showMobileLoading, showMobileError } from './mobile.js';
 
-const POLYTOPE_LIST_URL = './polytopes/data/polytope_list.json'; // Path relative to index.html
+const POLYTOPE_LIST_URL = './polytopes/data/polytope_list.json';
 
-// Define Color Schemes (integrating your existing schemes)
+// Define Color Schemes (including a new colorblind-friendly option)
 const COLOR_SCHEMES = [
     {
         name: "Default Single", // Keeps original behavior - uses color picker
@@ -42,7 +46,7 @@ const COLOR_SCHEMES = [
             "#8C8C8C", "#787878", "#646464", "#505050", "#3C3C3C",
         ]
     },
-    // Additional new color schemes
+    // Additional color schemes
     {
         name: "Vibrant",
         colors: [
@@ -63,29 +67,119 @@ const COLOR_SCHEMES = [
             "#FF00FF", "#00FFFF", "#FF0000", "#00FF00", 
             "#0000FF", "#FFFF00", "#FF00CC", "#CC00FF"
         ]
+    },
+    {
+        name: "Colorblind Friendly",
+        colors: [
+            "#0072B2", // Blue
+            "#E69F00", // Orange
+            "#56B4E9", // Light blue
+            "#009E73", // Green
+            "#F0E442", // Yellow
+            "#D55E00", // Red-orange
+            "#CC79A7", // Pink
+            "#000000", // Black
+            "#FFFFFF", // White
+            "#999999"  // Gray
+        ]
     }
 ];
 
-// Start with "Face Index" as default instead of single color
+// Start with "Face Index" as default 
 const DEFAULT_COLOR_SCHEME_NAME = COLOR_SCHEMES[1].name;
 
 // --- Application State ---
 let currentPolytopeFilename = null;
-let availablePolytopesList = []; // Will be populated by fetching the manifest
-let defaultPolytope = null;      // Will be determined after fetching list
+let availablePolytopesList = [];
+let defaultPolytope = null;
 let currentColorScheme = COLOR_SCHEMES.find(s => s.name === DEFAULT_COLOR_SCHEME_NAME) || COLOR_SCHEMES[0];
-let autoRotationEnabled = false; // Track autorotation state
+let autoRotationEnabled = false;
 let renderer = null;
 let controls = null;
+let isMobile = false; // Store device type
 
-// --- Initialization ---
-// Make initApp async to handle fetching the list
-async function initApp() {
-    console.log("Initializing Polytope Viewer...");
-    UI.showLoading(true); // Show loading indicator early
+// --- Main Entry Point ---
+function checkDeviceAndInitialize() {
+    // Determine device type first, before any UI is created
+    isMobile = isMobileDevice();
+    console.log(`Device detected: ${isMobile ? 'Mobile' : 'Desktop'}`);
     
-    // Initialize mobile features first
+    // Apply appropriate body class immediately
+    document.body.classList.add(isMobile ? 'mobile-device' : 'desktop-device');
+    
+    // Hide desktop controls immediately if on mobile
+    if (isMobile) {
+        const controls = document.getElementById('controls');
+        if (controls) {
+            controls.style.display = 'none';
+        }
+    }
+    
+    // Now start the appropriate initialization
+    if (isMobile) {
+        initMobileApp();
+    } else {
+        initDesktopApp();
+    }
+}
+
+// Initialize for mobile devices
+async function initMobileApp() {
+    console.log("Initializing Mobile Polytope Viewer...");
+    
+    // Initialize mobile UI first
     initMobileFeatures();
+    showMobileLoading(true);
+    
+    // Fetch polytope list
+    try {
+        console.log(`Fetching polytope list from: ${POLYTOPE_LIST_URL}`);
+        const response = await fetch(POLYTOPE_LIST_URL);
+        if (!response.ok) {
+            throw new Error(`HTTP error fetching list! Status: ${response.status}`);
+        }
+        availablePolytopesList = await response.json();
+        
+        if (!Array.isArray(availablePolytopesList) || availablePolytopesList.length === 0) {
+            throw new Error("No valid polytopes found in the manifest file.");
+        }
+        
+        defaultPolytope = availablePolytopesList[0];
+        
+        // Initialize the 3D viewer
+        const canvas = document.getElementById('viewer-canvas');
+        if (!canvas) {
+            throw new Error("Canvas element not found");
+        }
+        
+        const viewerResult = Viewer.init(canvas);
+        renderer = viewerResult?.renderer;
+        controls = viewerResult?.controls;
+        
+        // Apply mobile optimizations
+        if (renderer) optimizeRendererForMobile(renderer);
+        if (controls) enhanceTouchControls(controls);
+        
+        // Populate mobile dropdown
+        populateMobileDropdown(availablePolytopesList);
+        
+        // Load the default polytope
+        if (defaultPolytope) {
+            await loadAndDisplayPolytope(defaultPolytope);
+        }
+        
+        showMobileLoading(false);
+    } catch (error) {
+        console.error("Error in mobile initialization:", error);
+        showMobileError(error.message);
+        showMobileLoading(false);
+    }
+}
+
+// Initialize for desktop devices
+async function initDesktopApp() {
+    console.log("Initializing Desktop Polytope Viewer...");
+    UI.showLoading(true); // Show loading indicator early
 
     // 1. Fetch the list of available polytopes
     try {
@@ -108,9 +202,6 @@ async function initApp() {
         console.error("Failed to load or parse polytope list:", error);
         UI.showErrorMessage(`Error loading polytope list: ${error.message}. Cannot initialize viewer.`);
         UI.showLoading(false);
-        if (isMobileDevice()) {
-            showMobileLoading(false);
-        }
         return; // Stop initialization if list fails
     }
 
@@ -122,25 +213,12 @@ async function initApp() {
         console.error("Canvas element #viewer-canvas not found!");
         UI.showErrorMessage("Fatal Error: Canvas not found.");
         UI.showLoading(false);
-        if (isMobileDevice()) {
-            showMobileLoading(false);
-        }
         return;
     }
     
     const viewerResult = Viewer.init(canvas);
     renderer = viewerResult?.renderer;
     controls = viewerResult?.controls;
-    
-    // Apply mobile optimizations to the renderer if needed
-    if (isMobileDevice() && renderer) {
-        optimizeRendererForMobile(renderer);
-    }
-    
-    // Enhance touch controls if needed
-    if (isMobileDevice() && controls) {
-        enhanceTouchControls(controls);
-    }
     
     console.log("Viewer initialized.");
 
@@ -152,13 +230,13 @@ async function initApp() {
 
     // 4. Set up UI event listeners (including new ones for vertex emphasis and autorotation)
     UI.setupEventListeners({
-	onColorChange: handleFaceColorChange,
-	onOpacityChange: Viewer.updateFaceOpacity,
-	onVertexEmphasisToggle: handleVertexEmphasisToggle,
-	onVertexColorChange: handleVertexColorChange,
-	onAutorotateToggle: handleAutorotationToggle,
-	onExportClick: handleExportClick,
-	onExportGifClick: handleExportGifClick,
+        onColorChange: handleFaceColorChange,
+        onOpacityChange: Viewer.updateFaceOpacity,
+        onVertexEmphasisToggle: handleVertexEmphasisToggle,
+        onVertexColorChange: handleVertexColorChange,
+        onAutorotateToggle: handleAutorotationToggle,
+        onExportClick: handleExportClick,
+        onExportGifClick: handleExportGifClick,
     });
     console.log("UI Event listeners set up.");
 
@@ -175,140 +253,48 @@ async function initApp() {
         console.warn("No default polytope determined.");
         UI.showErrorMessage("No polytopes available to display.");
         UI.showLoading(false);
-        if (isMobileDevice()) {
+    }
+}
+
+// For mobile: Populate the mobile dropdown
+function populateMobileDropdown(polytopeList) {
+    const mobileSelect = document.getElementById('mobile-polytope-select');
+    if (!mobileSelect) return;
+    
+    mobileSelect.innerHTML = '';
+    
+    polytopeList.forEach(filename => {
+        const option = document.createElement('option');
+        option.value = filename;
+        option.textContent = filename
+            .replace('.json', '')
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase());
+        mobileSelect.appendChild(option);
+    });
+    
+    mobileSelect.addEventListener('change', async () => {
+        const selectedFilename = mobileSelect.value;
+        if (selectedFilename && selectedFilename !== currentPolytopeFilename) {
+            showMobileLoading(true);
+            await loadAndDisplayPolytope(selectedFilename);
             showMobileLoading(false);
         }
-    }
+    });
 }
 
-// --- Event Handlers ---
-
-/** Handles the change event from the polytope selection dropdown. */
-function handlePolytopeSelectionChange(selectedFilename) {
-    if (selectedFilename && selectedFilename !== currentPolytopeFilename) {
-        console.log(`Polytope selection changed to: ${selectedFilename}`);
-        loadAndDisplayPolytope(selectedFilename); // This will re-apply current color scheme
-    }
-}
-
-/** Handles the change event from the color scheme selection dropdown. */
-function handleColorSchemeChange(schemeName) {
-    const selectedScheme = COLOR_SCHEMES.find(s => s.name === schemeName);
-    if (selectedScheme) {
-        console.log(`Color scheme changed to: ${schemeName}`);
-        currentColorScheme = selectedScheme;
-        applyCurrentColorScheme(); // Apply the newly selected scheme
-        // Enable/disable single color picker based on scheme
-        UI.toggleFaceColorPicker(selectedScheme.name === "Default Single");
-    } else {
-        console.warn(`Selected color scheme "${schemeName}" not found.`);
-    }
-}
-
-/** Handles input changes from the single face color picker. */
-function handleFaceColorChange(color) {
-    console.log(`Face color picker changed to: ${color}`);
-    // Only apply if the "Default Single" scheme is active
-    // Or: Always apply, forcing the scheme to "Default Single"
-    if (!currentColorScheme || currentColorScheme.name !== "Default Single") {
-        // If user changes color picker, assume they want single color mode
-        UI.elements.colorSchemeSelect.value = "Default Single";
-        currentColorScheme = COLOR_SCHEMES.find(s => s.name === "Default Single");
-        UI.toggleFaceColorPicker(true); // Ensure picker stays enabled
-        console.log("Switched scheme to 'Default Single' due to color picker interaction.");
-    }
-    // Apply the color using the viewer function
-    Viewer.applyColorScheme(null, color);
-}
-
-/** Handles vertex emphasis toggle */
-function handleVertexEmphasisToggle(enabled) {
-    console.log(`Vertex emphasis toggled: ${enabled}`);
-    if (Viewer.isReady()) {
-        Viewer.toggleVertexEmphasis(enabled);
-    }
-}
-
-/** Handles vertex color change */
-function handleVertexColorChange(color) {
-    console.log(`Vertex color changed to: ${color}`);
-    if (Viewer.isReady()) {
-        Viewer.updateVertexColor(color);
-    }
-}
-
-/** Handles autorotation toggle button */
-function handleAutorotationToggle(enabled) {
-    console.log(`Autorotation toggled: ${enabled}`);
-    autoRotationEnabled = enabled;
-    if (Viewer.isReady()) {
-        Viewer.toggleAutorotation(enabled);
-    }
-}
-
-// Export handlers
-function handleExportClick() {
-    console.log("Export PNG handler called");
-    if (Viewer.isReady()) {
-        // On mobile, automatically collapse the controls panel first
-        if (isMobileDevice()) {
-            const controlsPanel = document.getElementById('controls');
-            if (controlsPanel && controlsPanel.classList.contains('visible')) {
-                const toggleButton = document.getElementById('mobile-controls-toggle');
-                if (toggleButton) toggleButton.click();
-            }
-            // Show loading indicator
-            showMobileLoading(true);
-            
-            // Wait a moment for UI to update before capturing
-            setTimeout(() => {
-                Viewer.exportToPNG();
-                showMobileLoading(false);
-            }, 300);
-        } else {
-            // Standard desktop behavior
-            Viewer.exportToPNG();
-        }
-    } else {
-        UI.showErrorMessage('Cannot export PNG: Viewer not ready.');
-    }
-}
-
-function handleExportGifClick() {
-    console.log("Export GIF handler called");
-    if (Viewer.isReady()) {
-        // On mobile, automatically collapse the controls panel first
-        if (isMobileDevice()) {
-            const controlsPanel = document.getElementById('controls');
-            if (controlsPanel && controlsPanel.classList.contains('visible')) {
-                const toggleButton = document.getElementById('mobile-controls-toggle');
-                if (toggleButton) toggleButton.click();
-            }
-            
-            // Use shorter duration and lower quality for mobile
-            Viewer.exportToGIF(2, 12, 5);
-        } else {
-            // Higher quality for desktop
-            Viewer.exportToGIF(3, 15);
-        }
-    } else {
-        UI.showErrorMessage('Cannot export GIF: Viewer not ready.');
-    }
-}
-
-// --- Core Logic ---
+// --- Shared Functions ---
 
 /** Loads data and updates viewer, handles UI states. */
 async function loadAndDisplayPolytope(filename) {
     if (!filename) return;
 
-    UI.showLoading(true);
-    // Only show mobile loading if we're on mobile
-    if (isMobileDevice()) {
+    if (isMobile) {
         showMobileLoading(true);
+    } else {
+        UI.showLoading(true);
     }
     
-    UI.showErrorMessage('');
     currentPolytopeFilename = filename; // Track current selection attempt
 
     try {
@@ -316,37 +302,51 @@ async function loadAndDisplayPolytope(filename) {
 
         if (polytopeData) {
             Viewer.updatePolytopeMesh(polytopeData);
-            applyCurrentColorScheme(); // Apply selected scheme AFTER mesh is built
             
-            // Reapply any active vertex settings after mesh update
-            if (UI.getVertexEmphasis()) {
-                Viewer.toggleVertexEmphasis(true);
-                Viewer.updateVertexColor(UI.getVertexColor());
-            }
-            
-            // Restore autorotation state if it was enabled
-            if (autoRotationEnabled) {
+            if (!isMobile) {
+                applyCurrentColorScheme(); // Apply selected scheme AFTER mesh is built
+                
+                // Reapply any active vertex settings after mesh update
+                if (UI.getVertexEmphasis) {
+                    Viewer.toggleVertexEmphasis(UI.getVertexEmphasis());
+                    Viewer.updateVertexColor(UI.getVertexColor());
+                }
+                
+                // Restore autorotation state if it was enabled
+                if (autoRotationEnabled) {
+                    Viewer.toggleAutorotation(true);
+                }
+                
+                // Update UI select in case load was triggered programmatically
+                if (UI.elements && UI.elements.polytopeSelect && UI.elements.polytopeSelect.value !== filename) {
+                    UI.elements.polytopeSelect.value = filename;
+                }
+            } else {
+                // For mobile, always enable autorotation for better UX
                 Viewer.toggleAutorotation(true);
-            }
-            
-            // Update UI select in case load was triggered programmatically
-            if (UI.elements.polytopeSelect.value !== filename) {
-                UI.elements.polytopeSelect.value = filename;
+                autoRotationEnabled = true;
             }
         } else {
-            // Loader handled the console error, show user message
-            UI.showErrorMessage(`Failed to load data for ${filename}. Check console.`);
+            if (isMobile) {
+                showMobileError(`Failed to load data for ${filename}`);
+            } else {
+                UI.showErrorMessage(`Failed to load data for ${filename}. Check console.`);
+            }
             Viewer.updatePolytopeMesh(null); // Clear the viewer on load failure
         }
     } catch (error) {
-        // Catch any unexpected errors during the process
         console.error(`Error in loadAndDisplayPolytope for ${filename}:`, error);
-        UI.showErrorMessage(`An unexpected error occurred while loading ${filename}.`);
+        if (isMobile) {
+            showMobileError(`Error loading ${filename}`);
+        } else {
+            UI.showErrorMessage(`An unexpected error occurred while loading ${filename}.`);
+        }
         Viewer.updatePolytopeMesh(null); // Clear the viewer
     } finally {
-        UI.showLoading(false);
-        if (isMobileDevice()) {
+        if (isMobile) {
             showMobileLoading(false);
+        } else {
+            UI.showLoading(false);
         }
     }
 }
@@ -372,10 +372,74 @@ function applyCurrentColorScheme() {
     }
 }
 
+// Event handler functions (for desktop)
+// Include your event handler functions from original code here
+function handlePolytopeSelectionChange(selectedFilename) {
+    if (selectedFilename && selectedFilename !== currentPolytopeFilename) {
+        console.log(`Polytope selection changed to: ${selectedFilename}`);
+        loadAndDisplayPolytope(selectedFilename);
+    }
+}
+
+function handleColorSchemeChange(schemeName) {
+    const selectedScheme = COLOR_SCHEMES.find(s => s.name === schemeName);
+    if (selectedScheme) {
+        console.log(`Color scheme changed to: ${schemeName}`);
+        currentColorScheme = selectedScheme;
+        applyCurrentColorScheme();
+        UI.toggleFaceColorPicker(selectedScheme.name === "Default Single");
+    }
+}
+
+function handleFaceColorChange(color) {
+    if (!currentColorScheme || currentColorScheme.name !== "Default Single") {
+        UI.elements.colorSchemeSelect.value = "Default Single";
+        currentColorScheme = COLOR_SCHEMES.find(s => s.name === "Default Single");
+        UI.toggleFaceColorPicker(true);
+    }
+    Viewer.applyColorScheme(null, color);
+}
+
+function handleVertexEmphasisToggle(enabled) {
+    if (Viewer.isReady()) {
+        Viewer.toggleVertexEmphasis(enabled);
+    }
+}
+
+function handleVertexColorChange(color) {
+    if (Viewer.isReady()) {
+        Viewer.updateVertexColor(color);
+    }
+}
+
+function handleAutorotationToggle(enabled) {
+    autoRotationEnabled = enabled;
+    if (Viewer.isReady()) {
+        Viewer.toggleAutorotation(enabled);
+    }
+}
+
+function handleExportClick() {
+    if (Viewer.isReady()) {
+        Viewer.exportToPNG();
+    } else {
+        UI.showErrorMessage('Cannot export PNG: Viewer not ready.');
+    }
+}
+
+function handleExportGifClick() {
+    if (Viewer.isReady()) {
+        Viewer.exportToGIF(3, 15);
+    } else {
+        UI.showErrorMessage('Cannot export GIF: Viewer not ready.');
+    }
+}
+
 // --- Start the Application ---
-// Ensure the DOM is fully loaded before initializing
+// Check device type before DOM is fully loaded to prevent flashing
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
+    document.addEventListener('DOMContentLoaded', checkDeviceAndInitialize);
 } else {
-    initApp(); // DOMContentLoaded has already fired
+    // If DOM is already loaded, check device immediately
+    checkDeviceAndInitialize();
 }

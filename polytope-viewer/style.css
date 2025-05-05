@@ -1,3 +1,7 @@
+/* ================================================== */
+/* DESKTOP STYLES                                     */
+/* ================================================== */
+
 body {
     margin: 0;
     font-family: sans-serif;
@@ -115,44 +119,58 @@ label[for="vertex-color-picker"] {
     color: #f44336;
 }
 
-/* ---------- MOBILE SPECIFIC STYLES ---------- */
-/* MOBILE SPECIFIC STYLES - Completely separated from desktop */
+/* ================================================== */
+/* MOBILE SPECIFIC STYLES                             */
+/* ================================================== */
+
+/* Mobile header - only visible on mobile devices */
 .mobile-header {
-    display: none;  /* Initially hidden, JavaScript will show it on mobile */
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
-    height: 70px;
+    width: 100%;
+    height: 60px;
     background-color: #f4f4f4;
     border-bottom: 1px solid #ccc;
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     z-index: 1000;
-    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 15px;
 }
 
 .mobile-header-container {
-    display: flex;
-    flex-direction: column;
     width: 100%;
     max-width: 300px;
-    margin: 0 auto;
+    padding: 0 10px;
 }
 
 .mobile-header label {
+    display: block;
+    margin-bottom: 8px;
     font-weight: bold;
-    margin-bottom: 5px;
+    color: #333;
 }
 
 .mobile-header select {
+    width: 100%;
     padding: 10px;
     font-size: 16px;
     border-radius: 5px;
     border: 1px solid #ccc;
+    background-color: white;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg fill='black' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 20px;
+    padding-right: 30px;
 }
 
+/* Mobile loading indicator */
 .mobile-loader {
-    display: none;
     position: fixed;
     top: 50%;
     left: 50%;
@@ -172,21 +190,103 @@ label[for="vertex-color-picker"] {
     100% { transform: rotate(360deg); }
 }
 
-/* Media query for mobile devices */
-@media (max-width: 768px) {
-    body {
-        padding-top: 70px !important; /* Force padding for mobile header */
+/* Mobile error message */
+.mobile-error {
+    position: fixed;
+    bottom: 20px;
+    left: 10px;
+    right: 10px;
+    background-color: rgba(244, 67, 54, 0.9);
+    color: white;
+    padding: 12px;
+    border-radius: 5px;
+    text-align: center;
+    z-index: 1001;
+}
+
+/* Mobile device body class styles */
+body.mobile-device {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    padding-top: 60px; /* Space for the fixed header */
+    display: block; /* Override flex display */
+}
+
+/* Canvas positioning on mobile */
+body.mobile-device #viewer-canvas {
+    position: fixed !important;
+    top: 60px !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: calc(100vh - 60px) !important;
+    touch-action: none;
+}
+
+/* Hide desktop controls completely on mobile */
+body.mobile-device #controls {
+    display: none !important;
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) {
+    body.mobile-device {
+        padding-top: 50px; /* Slightly smaller header in landscape */
     }
     
-    #controls {
-        display: none !important; /* Force hide desktop controls */
+    body.mobile-device .mobile-header {
+        height: 50px;
+        flex-direction: row;
     }
     
-    #viewer-canvas {
-        position: absolute !important;
-        top: 70px !important;
-        left: 0 !important;
-        width: 100% !important;
-        height: calc(100vh - 70px) !important;
+    body.mobile-device .mobile-header-container {
+        display: flex;
+        align-items: center;
     }
+    
+    body.mobile-device .mobile-header label {
+        margin-right: 10px;
+        margin-bottom: 0;
+        white-space: nowrap;
+    }
+    
+    body.mobile-device #viewer-canvas {
+        top: 50px !important;
+        height: calc(100vh - 50px) !important;
+    }
+}
+
+/* ================================================== */
+/* UTILITY CLASSES                                    */
+/* ================================================== */
+
+/* Desktop-only elements (hidden on mobile) */
+.desktop-only {
+    display: none !important;
+}
+
+/* Mobile-only elements (hidden on desktop) */
+.mobile-only {
+    display: none !important;
+}
+
+/* Responsive class application */
+body.mobile-device .desktop-only {
+    display: none !important;
+}
+
+body.desktop-device .mobile-only,
+body.mobile-device .mobile-only {
+    display: block !important;
+}
+
+/* By default, mobile elements are hidden unless mobile class is applied */
+.mobile-header,
+.mobile-loader,
+.mobile-error {
+    display: none;
+}
+
+body.mobile-device .mobile-header {
+    display: flex;
 }
