@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple 3D Polytope Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="controls">
+        <label for="polytope-select">Select Polytope:</label>
+        <select id="polytope-select"></select>
+
+        <label for="face-color-picker">Face Color:</label>
+        <input type="color" id="face-color-picker" value="#1E90FF"> <!-- Default: DodgerBlue -->
+
+        <label for="face-opacity-slider">Face Opacity:</label>
+        <input type="range" id="face-opacity-slider" min="0" max="1" step="0.05" value="0.9">
+
+        <!-- Optional Controls (Initially hidden/commented if not implemented) -->
+        <!--
+        <label for="show-edges-toggle">Show Edges:</label>
+        <input type="checkbox" id="show-edges-toggle" checked>
+
+        <label for="show-vertices-toggle">Show Vertices:</label>
+        <input type="checkbox" id="show-vertices-toggle">
+        -->
+
+        <button id="export-button">Export PNG</button>
+        <p id="loading-status" style="display: none; color: orange;">Loading...</p>
+        <p id="error-message" style="display: none; color: red;"></p>
+    </div>
+
+    <canvas id="viewer-canvas"></canvas>
+
+    <!-- Import Three.js and Controls -->
+    <!-- Option 1: Local Files -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./vendor/three.module.js",
+                "three/addons/": "./vendor/examples/jsm/"
+            }
+        }
+    </script>
+    <!-- Option 2: CDN (Example) -->
+    <!--
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@<version>/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@<version>/examples/jsm/"
+            }
+        }
+    </script>
+     Replace <version> with a specific three.js version e.g., 0.158.0
+    -->
+
+
+    <!-- Main Application Logic -->
+    <script type="module" src="js/main.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,280 @@
+# --- START OF SCRIPT ---
+# Print immediately to check if script execution begins
+print("DEBUG: generate_jsons.py script starting...")
+
+# IMPORTANT: This script must be run from within the 'polytopes' directory
+# using the SageMath interpreter!
+# Example: cd /path/to/polytope-viewer/polytopes
+#          sage generate_jsons.py
+
+import os
+import sys
+import json
+import importlib
+from pathlib import Path
+import traceback # For more detailed error printing
+
+# --- Configuration ---
+BUILD_FUNCTIONS_DIR = "build_functions"
+OUTPUT_DATA_DIR = "data"
+BUILD_FUNCTION_NAME = "build" # Expected function name in builder scripts
+
+print(f"DEBUG: Configuration set - BUILD_DIR='{BUILD_FUNCTIONS_DIR}', DATA_DIR='{OUTPUT_DATA_DIR}'")
+
+# --- Ensure SageMath Polyhedron is available ---
+try:
+    print("DEBUG: Attempting to import SageMath Polyhedron...")
+    from sage.all import Polyhedron
+    print("DEBUG: SageMath Polyhedron imported successfully.")
+except ImportError:
+    print("ERROR: Could not import SageMath components.")
+    print("Please ensure this script is run using the 'sage' interpreter.")
+    print("Exiting.")
+    sys.exit(1)
+except Exception as e:
+    print(f"ERROR: An unexpected error occurred during SageMath import: {e}")
+    print("Exiting.")
+    sys.exit(1)
+
+
+# --- Helper Functions ---
+
+      
+def sage_polytope_to_json_data(polytope_sage, name):
+    """
+    Converts a SageMath 3D Polyhedron object into a Python dictionary
+    formatted for the polytope viewer JSON structure.
+    """
+    # Check if it behaves like a Polyhedron... (Keep the robust check from before)
+    if not (hasattr(polytope_sage, 'vertices') and
+            hasattr(polytope_sage, 'faces') and
+            hasattr(polytope_sage, 'dim')):
+        print(f"ERROR converting '{name}': Input object does not appear to be a Sage Polyhedron...")
+        return None
+    try:
+        dimension = polytope_sage.dim()
+    except Exception as e:
+        print(f"ERROR converting '{name}': Could not determine dimension...")
+        return None
+    if dimension != 3:
+        print(f"ERROR converting '{name}': Polytope must be 3-dimensional...")
+        return None
+
+    print(f"--- Converting '{name}' to JSON structure...")
+
+    # 1. Extract Vertices AND store the Sage Vertex objects for lookup
+    vertices_sage_objects = polytope_sage.vertices() # Get the Sage Vertex objects
+    vertices_list_coords = [] # For the final JSON output
+    if not vertices_sage_objects:
+         print(f"WARNING converting '{name}': Polytope has no vertices defined.")
+         return None
+
+    try:
+        # Create the coordinate list for JSON
+        for v_obj in vertices_sage_objects:
+            coords = list(v_obj) # Get coordinates from the vertex object
+            if len(coords) != 3:
+                print(f"ERROR converting '{name}': Vertex {v_obj} does not have 3 coordinates.")
+                return None
+            vertices_list_coords.append([float(c) for c in coords])
+        print(f"    - Extracted {len(vertices_list_coords)} vertex coordinates.")
+
+        # --- IMPORTANT: Create a mapping from Sage Vertex object to its index ---
+        # Sage objects might not be directly hashable for a dict key in all cases,
+        # using list.index() is safer though potentially slower for huge polytopes.
+        # vertices_sage_objects should be a list or tuple from .vertices()
+        # If it's not a list, convert it:
+        if not isinstance(vertices_sage_objects, list):
+             vertices_sage_objects = list(vertices_sage_objects)
+
+    except Exception as e:
+        print(f"ERROR extracting vertices or creating mapping for '{name}': {e}")
+        traceback.print_exc() # Print details
+        return None
+
+    # 2. Extract Faces (get Vertex objects, then find their indices)
+    try:
+        faces_sage = polytope_sage.faces(face_dimension=2)
+        faces_list_indices = [] # For the final JSON output
+
+        if not faces_sage:
+            print(f"ERROR converting '{name}': Current viewer requires 2D faces. No 2D faces found.")
+            return None
+
+        for face in faces_sage:
+            # face.vertices() returns a list/tuple of Sage Vertex objects for this face
+            face_vertex_objects = face.vertices()
+            current_face_indices = []
+            for v_obj_on_face in face_vertex_objects:
+                try:
+                    # Find the index of this Vertex object in the master list
+                    idx = vertices_sage_objects.index(v_obj_on_face)
+                    current_face_indices.append(idx) # Use the found index (which is an int)
+                except ValueError:
+                    # This shouldn't happen if face.vertices() returns objects from the master list
+                    print(f"ERROR converting '{name}': Vertex {v_obj_on_face} from face not found in master vertex list!")
+                    return None
+                except Exception as e_idx:
+                     print(f"ERROR finding index for vertex {v_obj_on_face} on face of '{name}': {e_idx}")
+                     traceback.print_exc()
+                     return None
+
+            faces_list_indices.append(current_face_indices)
+        print(f"    - Extracted {len(faces_list_indices)} faces (as vertex indices).")
+
+    except Exception as e:
+        print(f"ERROR extracting 2D faces or mapping vertices for '{name}': {e}")
+        traceback.print_exc()
+        return None
+
+    # 3. Create the output dictionary using the coordinate and index lists
+    polytope_data = {
+        "name": name,
+        "vertices": vertices_list_coords, # Use the coordinate list
+        "faces": faces_list_indices    # Use the index list
+    }
+    return polytope_data
+
+def save_json_to_file(data, filename, output_dir):
+    """Saves the dictionary data as a JSON file."""
+    if not data:
+        print(f"INFO: Skipping save for {filename}: No data provided (likely due to conversion error).")
+        return
+
+    output_dir_path = Path(output_dir)
+    try:
+        # Ensure the output directory exists
+        output_dir_path.mkdir(parents=True, exist_ok=True)
+        print(f"DEBUG: Ensured output directory exists: {output_dir_path}")
+    except Exception as e:
+        print(f"ERROR: Could not create output directory {output_dir_path}: {e}")
+        return # Cannot save if directory fails
+
+    filepath = output_dir_path / filename
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=2) # Use indent for readability
+        print(f"--- Successfully saved: {filepath}")
+    except IOError as e:
+        print(f"ERROR saving file {filepath}: {e}")
+    except TypeError as e:
+         print(f"ERROR serializing data to JSON for {filepath}: {e}")
+
+
+# --- Main Script Logic ---
+
+def main():
+    # Get the directory where this script is located
+    try:
+        script_dir = Path(__file__).parent.resolve()
+        build_dir = script_dir / BUILD_FUNCTIONS_DIR
+        data_dir = script_dir / OUTPUT_DATA_DIR
+        print(f"DEBUG: Resolved script directory: {script_dir}")
+    except Exception as e:
+        print(f"ERROR: Failed to resolve script paths: {e}")
+        sys.exit(1)
+
+    print("=" * 50)
+    print(f"Starting Polytope JSON Generation")
+    print(f"Script Directory: {script_dir}")
+    print(f"Looking for builders in: {build_dir}")
+    print(f"Outputting JSON to: {data_dir}")
+    print("=" * 50)
+
+    if not build_dir.is_dir():
+        print(f"ERROR: Build functions directory not found: {build_dir}")
+        print("Please create the 'build_functions' directory inside 'polytopes' and add your build_*.py files.")
+        sys.exit(1)
+
+    # Temporarily add the script's directory to sys.path to help importlib find the package
+    original_sys_path = list(sys.path) # Keep a copy to restore later
+    sys.path.insert(0, str(script_dir))
+    print(f"DEBUG: Temporarily added {script_dir} to sys.path")
+
+    processed_count = 0
+    error_count = 0
+
+    # Find all 'build_*.py' files
+    try:
+        builder_files = sorted(list(build_dir.glob("build_*.py")))
+        print(f"DEBUG: Found {len(builder_files)} potential builder files in {build_dir}.")
+    except Exception as e:
+        print(f"ERROR: Failed to scan build directory {build_dir}: {e}")
+        sys.path = original_sys_path # Restore original path
+        sys.exit(1)
+
+
+    if not builder_files:
+        print(f"WARNING: No builder scripts (build_*.py) found in {build_dir}")
+        sys.path = original_sys_path # Restore original path
+        return # Exit gracefully if no builders found
+
+    for builder_file in builder_files:
+        module_name_base = builder_file.stem # e.g., 'build_cube'
+        # Module name relative to the added script_dir path
+        module_full_name = f"{BUILD_FUNCTIONS_DIR}.{module_name_base}"
+        json_filename = module_name_base.replace("build_", "") + ".json" # e.g., 'cube.json'
+
+        print(f"\n>>> Processing: {builder_file.name} -> {json_filename}")
+
+        try:
+            print(f"DEBUG: Importing module: {module_full_name}")
+            # Dynamically import the module
+            module = importlib.import_module(module_full_name)
+            print(f"DEBUG: Module {module_full_name} imported.")
+
+            # Check if the build function exists
+            if hasattr(module, BUILD_FUNCTION_NAME) and callable(getattr(module, BUILD_FUNCTION_NAME)):
+                build_func = getattr(module, BUILD_FUNCTION_NAME)
+                print(f"DEBUG: Found build function '{BUILD_FUNCTION_NAME}' in {module_name_base}.")
+
+                # Call the build function
+                print(f"DEBUG: Calling {BUILD_FUNCTION_NAME}() from {module_name_base}...")
+                sage_poly, display_name = build_func()
+                print(f"DEBUG: Build function returned object of type {type(sage_poly)} and name '{display_name}'.")
+
+                # Convert the Sage object to our JSON dict format
+                json_data = sage_polytope_to_json_data(sage_poly, display_name)
+
+                # Save the JSON data to the data directory
+                save_json_to_file(json_data, json_filename, data_dir)
+                if json_data:
+                    processed_count += 1
+                else:
+                     error_count += 1 # Count conversion errors as errors
+
+            else:
+                print(f"ERROR: Builder script {builder_file.name} does not have a callable function named '{BUILD_FUNCTION_NAME}'.")
+                error_count += 1
+
+        except ImportError as e:
+            print(f"ERROR: Failed to import module {module_full_name}: {e}")
+            traceback.print_exc() # Print details
+            error_count += 1
+        except Exception as e:
+            print(f"ERROR: An unexpected error occurred while processing {builder_file.name}: {e}")
+            traceback.print_exc() # Print the full traceback for debugging
+            error_count += 1
+
+    # Clean up the path modification by restoring the original path
+    sys.path = original_sys_path
+    print(f"DEBUG: Restored original sys.path.")
+
+    print("\n" + "=" * 50)
+    print(f"Generation Complete.")
+    print(f"Successfully processed and saved: {processed_count}")
+    print(f"Errors encountered (check logs above): {error_count}")
+    print("=" * 50)
+
+
+# --- Script Entry Point ---
+if __name__ == "__main__":
+    print("DEBUG: Running main() function...")
+    main()
+    print("DEBUG: main() function finished.")
+else:
+    # This part should not normally run when executing `sage generate_jsons.py`
+    print("DEBUG: Script imported, not run directly.")
+
+print("DEBUG: End of generate_jsons.py script execution.")
+# --- END OF SCRIPT ---

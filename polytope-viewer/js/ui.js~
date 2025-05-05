@@ -1,0 +1,124 @@
+// --- Element References ---
+export const elements = {
+    polytopeSelect: document.getElementById('polytope-select'),
+    faceColorPicker: document.getElementById('face-color-picker'),
+    faceOpacitySlider: document.getElementById('face-opacity-slider'),
+    exportButton: document.getElementById('export-button'),
+    loadingStatus: document.getElementById('loading-status'),
+    errorMessage: document.getElementById('error-message'),
+    // Optional:
+    // showEdgesToggle: document.getElementById('show-edges-toggle'),
+    // showVerticesToggle: document.getElementById('show-vertices-toggle'),
+};
+
+// --- Initialization ---
+
+/**
+ * Populates the polytope selection dropdown.
+ * @param {string[]} polytopeFilenames - Array of polytope filenames (e.g., ["cube.json", "tetrahedron.json"]).
+ * @param {function(string)} onChangeCallback - Function to call when selection changes, passing the new filename.
+ */
+export function populateDropdown(polytopeFilenames, onChangeCallback) {
+    if (!elements.polytopeSelect || !polytopeFilenames) return;
+
+    elements.polytopeSelect.innerHTML = ''; // Clear existing options
+
+    polytopeFilenames.forEach(filename => {
+        const option = document.createElement('option');
+        option.value = filename;
+        // Derive name from filename (remove .json, capitalize)
+        option.textContent = filename
+            .replace('.json', '')
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize words
+        elements.polytopeSelect.appendChild(option);
+    });
+
+    // Add event listener
+    elements.polytopeSelect.addEventListener('change', (event) => {
+        onChangeCallback(event.target.value);
+    });
+
+    // Optionally trigger callback for the initial selection
+    if (polytopeFilenames.length > 0) {
+         // setTimeout(() => onChangeCallback(elements.polytopeSelect.value), 0); // Call async to ensure rest of init is done
+    }
+}
+
+// --- Getters ---
+
+export function getSelectedPolytope() {
+    return elements.polytopeSelect ? elements.polytopeSelect.value : null;
+}
+
+export function getFaceColor() {
+    return elements.faceColorPicker ? elements.faceColorPicker.value : '#ffffff';
+}
+
+export function getFaceOpacity() {
+    return elements.faceOpacitySlider ? parseFloat(elements.faceOpacitySlider.value) : 1.0;
+}
+
+// --- Event Listeners Setup ---
+
+/**
+ * Sets up event listeners for UI controls.
+ * @param {object} callbacks - Object containing callback functions:
+ *   { onColorChange(color), onOpacityChange(opacity), onExportClick() }
+ */
+export function setupEventListeners(callbacks) {
+    if (elements.faceColorPicker && callbacks.onColorChange) {
+        elements.faceColorPicker.addEventListener('input', (event) => {
+            callbacks.onColorChange(event.target.value);
+        });
+    }
+
+    if (elements.faceOpacitySlider && callbacks.onOpacityChange) {
+        elements.faceOpacitySlider.addEventListener('input', (event) => {
+            callbacks.onOpacityChange(parseFloat(event.target.value));
+        });
+    }
+
+    if (elements.exportButton && callbacks.onExportClick) {
+        elements.exportButton.addEventListener('click', () => {
+            callbacks.onExportClick();
+        });
+    }
+
+    // Optional: Add listeners for toggles here if implemented
+}
+
+// --- UI State Updates ---
+
+export function showLoading(isLoading) {
+    if (elements.loadingStatus) {
+        elements.loadingStatus.style.display = isLoading ? 'block' : 'none';
+    }
+    // Disable controls while loading?
+    if (elements.polytopeSelect) elements.polytopeSelect.disabled = isLoading;
+    if (elements.exportButton) elements.exportButton.disabled = isLoading;
+}
+
+export function showErrorMessage(message) {
+    if (elements.errorMessage) {
+        elements.errorMessage.textContent = message || '';
+        elements.errorMessage.style.display = message ? 'block' : 'none';
+    }
+}
+
+// --- Initial State Sync ---
+
+/**
+* Syncs UI controls (color/opacity) with initial viewer state if needed,
+* or ensures viewer gets initial UI values.
+* @param {function(string)} initialColorCallback - Callback to send initial color to viewer.
+* @param {function(number)} initialOpacityCallback - Callback to send initial opacity to viewer.
+*/
+export function syncInitialState(initialColorCallback, initialOpacityCallback) {
+    if (initialColorCallback) {
+        initialColorCallback(getFaceColor());
+    }
+    if (initialOpacityCallback) {
+        initialOpacityCallback(getFaceOpacity());
+    }
+}

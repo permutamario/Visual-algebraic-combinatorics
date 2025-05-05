@@ -1,0 +1,54 @@
+body {
+    margin: 0;
+    font-family: sans-serif;
+    display: flex; /* Use flexbox for layout */
+    height: 100vh;
+    overflow: hidden; /* Prevent body scrollbars */
+}
+
+#controls {
+    width: 250px; /* Fixed width for controls */
+    padding: 15px;
+    box-sizing: border-box;
+    overflow-y: auto; /* Allow scrolling if controls overflow */
+    background-color: #f4f4f4;
+    border-right: 1px solid #ccc;
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Space between control elements */
+}
+
+#controls label {
+    display: block; /* Labels on their own line */
+    margin-bottom: 2px;
+    font-weight: bold;
+}
+
+#controls select,
+#controls input,
+#controls button {
+    width: 100%; /* Make controls fill container width */
+    padding: 5px;
+    box-sizing: border-box; /* Include padding in width */
+}
+
+#controls input[type="range"] {
+    padding: 0; /* Range sliders look better without padding */
+}
+
+#controls input[type="color"] {
+    height: 30px; /* Make color picker slightly taller */
+    cursor: pointer;
+}
+
+
+#viewer-canvas {
+    flex-grow: 1; /* Canvas takes remaining space */
+    display: block; /* Remove extra space below canvas */
+}
+
+#loading-status,
+#error-message {
+    margin-top: 15px;
+    font-weight: bold;
+}
