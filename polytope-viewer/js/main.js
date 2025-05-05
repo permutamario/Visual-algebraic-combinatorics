@@ -3,9 +3,8 @@ import * as Loader from './loader.js';
 import * as Viewer from './viewer.js';
 
 const POLYTOPE_LIST_URL = './polytopes/data/polytope_list.json'; // Path relative to index.html
-//const DEFAULT_POLYTOPE = AVAILABLE_POLYTOPES[0] || null; // Use the first as default
 
-// Define Color Schemes
+// Define Color Schemes (integrating your existing schemes)
 const COLOR_SCHEMES = [
     {
         name: "Default Single", // Keeps original behavior - uses color picker
@@ -21,7 +20,6 @@ const COLOR_SCHEMES = [
             "#0000FF", // Blue
             "#4B0082", // Indigo
             "#8B00FF", // Violet
-            // Add more colors if needed for polytopes with many faces
             "#FF1493", // DeepPink
             "#00CED1", // DarkTurquoise
             "#FFD700", // Gold
@@ -42,9 +40,31 @@ const COLOR_SCHEMES = [
             "#F0F0F0", "#DCDCDC", "#C8C8C8", "#B4B4B4", "#A0A0A0",
             "#8C8C8C", "#787878", "#646464", "#505050", "#3C3C3C",
         ]
+    },
+    // Additional new color schemes
+    {
+        name: "Vibrant",
+        colors: [
+            "#FF1744", "#F50057", "#D500F9", "#651FFF", 
+            "#3D5AFE", "#00B0FF", "#1DE9B6", "#76FF03", "#FFEA00"
+        ]
+    },
+    {
+        name: "Earthy",
+        colors: [
+            "#8D6E63", "#A1887F", "#BCAAA4", "#D7CCC8", 
+            "#795548", "#6D4C41", "#5D4037", "#4E342E"
+        ]
+    },
+    {
+        name: "Neon",
+        colors: [
+            "#FF00FF", "#00FFFF", "#FF0000", "#00FF00", 
+            "#0000FF", "#FFFF00", "#FF00CC", "#CC00FF"
+        ]
     }
-    // Add more schemes here
 ];
+
 // Start with "Face Index" as default instead of single color
 const DEFAULT_COLOR_SCHEME_NAME = COLOR_SCHEMES[1].name;
 
@@ -53,6 +73,7 @@ let currentPolytopeFilename = null;
 let availablePolytopesList = []; // Will be populated by fetching the manifest
 let defaultPolytope = null;      // Will be determined after fetching list
 let currentColorScheme = COLOR_SCHEMES.find(s => s.name === DEFAULT_COLOR_SCHEME_NAME) || COLOR_SCHEMES[0];
+let autoRotationEnabled = false; // Track autorotation state
 
 // --- Initialization ---
 // Make initApp async to handle fetching the list
@@ -103,11 +124,16 @@ async function initApp() {
     UI.populateColorSchemeDropdown(COLOR_SCHEMES.map(s => s.name), handleColorSchemeChange);
     console.log("Dropdowns populated.");
 
-    // 4. Set up UI event listeners (same as before)
+    // 4. Set up UI event listeners (including new ones for vertex emphasis and autorotation)
     UI.setupEventListeners({
         onColorChange: handleFaceColorChange,
         onOpacityChange: Viewer.updateFaceOpacity,
+        onVertexEmphasisToggle: handleVertexEmphasisToggle,
+        onVertexColorChange: handleVertexColorChange,
+        onAutorotateToggle: handleAutorotationToggle,
         onExportClick: Viewer.exportToPNG,
+	onExportClick: handleExportClick,
+	onExportGifClick: handleExportGifClick,
     });
     console.log("UI Event listeners set up.");
 
@@ -125,11 +151,7 @@ async function initApp() {
         UI.showErrorMessage("No polytopes available to display.");
         UI.showLoading(false); // Hide loading indicator if no default is loaded
     }
-    // Final check: If still loading, hide indicator (should be handled by loadAndDisplayPolytope)
-    // UI.showLoading(false);
 }
-
-
 
 // --- Event Handlers ---
 
@@ -165,12 +187,37 @@ function handleFaceColorChange(color) {
         UI.elements.colorSchemeSelect.value = "Default Single";
         currentColorScheme = COLOR_SCHEMES.find(s => s.name === "Default Single");
         UI.toggleFaceColorPicker(true); // Ensure picker stays enabled
-         console.log("Switched scheme to 'Default Single' due to color picker interaction.");
+        console.log("Switched scheme to 'Default Single' due to color picker interaction.");
     }
     // Apply the color using the viewer function
     Viewer.applyColorScheme(null, color);
 }
 
+/** Handles vertex emphasis toggle */
+function handleVertexEmphasisToggle(enabled) {
+    console.log(`Vertex emphasis toggled: ${enabled}`);
+    if (Viewer.isReady()) {
+        Viewer.toggleVertexEmphasis(enabled);
+    }
+}
+
+
+/** Handles vertex color change */
+function handleVertexColorChange(color) {
+    console.log(`Vertex color changed to: ${color}`);
+    if (Viewer.isReady()) {
+        Viewer.updateVertexColor(color);
+    }
+}
+
+/** Handles autorotation toggle button */
+function handleAutorotationToggle(enabled) {
+    console.log(`Autorotation toggled: ${enabled}`);
+    autoRotationEnabled = enabled;
+    if (Viewer.isReady()) {
+        Viewer.toggleAutorotation(enabled);
+    }
+}
 
 // --- Core Logic ---
 
@@ -188,6 +235,18 @@ async function loadAndDisplayPolytope(filename) {
         if (polytopeData) {
             Viewer.updatePolytopeMesh(polytopeData);
             applyCurrentColorScheme(); // Apply selected scheme AFTER mesh is built
+            
+            // Reapply any active vertex settings after mesh update
+            if (UI.getVertexEmphasis()) {
+                Viewer.toggleVertexEmphasis(true);
+                Viewer.updateVertexColor(UI.getVertexColor());
+            }
+            
+            // Restore autorotation state if it was enabled
+            if (autoRotationEnabled) {
+                Viewer.toggleAutorotation(true);
+            }
+            
             // Update UI select in case load was triggered programmatically
             if (UI.elements.polytopeSelect.value !== filename) {
                 UI.elements.polytopeSelect.value = filename;
@@ -201,7 +260,7 @@ async function loadAndDisplayPolytope(filename) {
         // Catch any unexpected errors during the process
         console.error(`Error in loadAndDisplayPolytope for ${filename}:`, error);
         UI.showErrorMessage(`An unexpected error occurred while loading ${filename}.`);
-         Viewer.updatePolytopeMesh(null); // Clear the viewer
+        Viewer.updatePolytopeMesh(null); // Clear the viewer
     } finally {
         UI.showLoading(false);
     }
@@ -228,6 +287,26 @@ function applyCurrentColorScheme() {
     }
 }
 
+function handleExportGifClick() {
+  console.log("Export GIF handler called");
+  if (Viewer.isReady()) {
+    console.log("Calling viewer.exportToGIF()");
+    Viewer.exportToGIF(3, 15);
+  } else {
+    console.log("Viewer not ready");
+    UI.showErrorMessage('Cannot export GIF: Viewer not ready.');
+  }
+}
+
+// Add this function to main.js
+function handleExportClick() {
+  console.log("Export PNG handler called");
+  if (Viewer.isReady()) {
+    Viewer.exportToPNG();
+  } else {
+    UI.showErrorMessage('Cannot export PNG: Viewer not ready.');
+  }
+}
 
 // --- Start the Application ---
 // Ensure the DOM is fully loaded before initializing

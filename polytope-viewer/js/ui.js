@@ -3,8 +3,12 @@ export const elements = {
     polytopeSelect: document.getElementById('polytope-select'),
     faceColorPicker: document.getElementById('face-color-picker'),
     faceOpacitySlider: document.getElementById('face-opacity-slider'),
-    colorSchemeSelect: document.getElementById('color-scheme-select'), // Added
+    colorSchemeSelect: document.getElementById('color-scheme-select'),
+    vertexEmphasisToggle: document.getElementById('vertex-emphasis-toggle'),
+    vertexColorPicker: document.getElementById('vertex-color-picker'),
+    autorotateButton: document.getElementById('autorotate-button'),
     exportButton: document.getElementById('export-button'),
+    exportGifButton: document.getElementById('export-gif-button'),
     loadingStatus: document.getElementById('loading-status'),
     errorMessage: document.getElementById('error-message'),
 };
@@ -12,7 +16,7 @@ export const elements = {
 // Store callbacks to prevent duplicate listeners if functions are called multiple times
 let polytopeChangeCallback = null;
 let schemeChangeCallback = null;
-
+let autorotateState = false;
 
 // --- Initialization ---
 
@@ -53,7 +57,7 @@ function handlePolytopeSelectChange(event) {
 /** Populates the color scheme selection dropdown. */
 export function populateColorSchemeDropdown(schemeNames, onChangeCallback) {
     if (!elements.colorSchemeSelect || !schemeNames) {
-         console.error("Color scheme select element or scheme names missing for dropdown population.");
+        console.error("Color scheme select element or scheme names missing for dropdown population.");
         return;
     }
 
@@ -74,7 +78,7 @@ export function populateColorSchemeDropdown(schemeNames, onChangeCallback) {
 }
 // Named handler function for the event listener
 function handleColorSchemeSelectChange(event) {
-     if (schemeChangeCallback) {
+    if (schemeChangeCallback) {
         schemeChangeCallback(event.target.value);
     }
 }
@@ -110,6 +114,26 @@ export function getFaceOpacity() {
     return elements.faceOpacitySlider ? parseFloat(elements.faceOpacitySlider.value) : 1.0;
 }
 
+export function getVertexEmphasis() {
+    return elements.vertexEmphasisToggle ? elements.vertexEmphasisToggle.checked : false;
+}
+
+
+export function getVertexColor() {
+    return elements.vertexColorPicker ? elements.vertexColorPicker.value : '#000000';
+}
+
+export function toggleAutorotation() {
+    autorotateState = !autorotateState;
+    if (elements.autorotateButton) {
+        elements.autorotateButton.textContent = autorotateState ? 'Stop Autorotation' : 'Start Autorotation';
+    }
+    return autorotateState;
+}
+
+export function getAutorotationState() {
+    return autorotateState;
+}
 
 // --- Event Listeners Setup ---
 /** Sets up event listeners for UI controls that don't have them set during population. */
@@ -128,12 +152,48 @@ export function setupEventListeners(callbacks) {
             callbacks.onOpacityChange(parseFloat(event.target.value));
         });
     }
+    
+    // Vertex emphasis controls
+    if (elements.vertexEmphasisToggle && callbacks.onVertexEmphasisToggle) {
+        elements.vertexEmphasisToggle.addEventListener('change', (event) => {
+            const isEnabled = event.target.checked;
+            toggleVertexControls(isEnabled);
+            callbacks.onVertexEmphasisToggle(isEnabled);
+        });
+    }
+
+    
+    if (elements.vertexColorPicker && callbacks.onVertexColorChange) {
+        elements.vertexColorPicker.addEventListener('input', (event) => {
+            callbacks.onVertexColorChange(event.target.value);
+        });
+    }
+    
+    // Autorotation toggle
+    if (elements.autorotateButton && callbacks.onAutorotateToggle) {
+        elements.autorotateButton.addEventListener('click', () => {
+            const newState = toggleAutorotation();
+            callbacks.onAutorotateToggle(newState);
+        });
+    }
 
     if (elements.exportButton && callbacks.onExportClick) {
         elements.exportButton.addEventListener('click', () => {
             callbacks.onExportClick();
         });
     }
+
+    console.log("exportGifButton:", elements.exportGifButton);
+    console.log("onExportGifClick callback:", callbacks.onExportGifClick);
+
+    // Export Listener
+    if (elements.exportGifButton && callbacks.onExportGifClick) {
+	elements.exportGifButton.addEventListener('click', () => {
+	    console.log("Export GIF button clicked");
+	    callbacks.onExportGifClick();
+	});
+    }
+    
 }
 
 // --- UI State Updates ---
@@ -148,6 +208,9 @@ export function showLoading(isLoading) {
         elements.colorSchemeSelect,
         elements.faceColorPicker,
         elements.faceOpacitySlider,
+        elements.vertexEmphasisToggle,
+        elements.vertexColorPicker,
+        elements.autorotateButton,
         elements.exportButton
     ];
     controlsToDisable.forEach(control => {
@@ -156,7 +219,7 @@ export function showLoading(isLoading) {
 
     // Re-enable color picker based on scheme if finishing loading
     if (!isLoading && elements.colorSchemeSelect) {
-         toggleFaceColorPicker(elements.colorSchemeSelect.value === "Default Single");
+        toggleFaceColorPicker(elements.colorSchemeSelect.value === "Default Single");
     }
 }
 
@@ -178,7 +241,17 @@ export function toggleFaceColorPicker(enabled) {
         // Attempt to style the associated label (assumes label is sibling or parent)
         const label = document.querySelector(`label[for="${elements.faceColorPicker.id}"]`);
         if (label) {
-             label.style.opacity = enabled ? '1' : '0.6';
+            label.style.opacity = enabled ? '1' : '0.6';
         }
     }
+}
+
+/** Enable/disable the vertex controls based on emphasis toggle */
+export function toggleVertexControls(enabled) {
+    
+    if (elements.vertexColorPicker) {
+        elements.vertexColorPicker.disabled = !enabled;
+        elements.vertexColorPicker.style.opacity = enabled ? '1' : '0.5';
+    }
+    
 }

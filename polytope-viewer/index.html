@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple 3D Polytope Viewer</title>
+    <title>Enhanced 3D Polytope Viewer</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Add GIF.js libraries before importmap -->
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 </head>
 <body>
   <div id="controls">
-
-
         <label for="polytope-select">Select Polytope:</label>
         <select id="polytope-select"></select>
 
@@ -19,21 +19,23 @@
         <label for="face-opacity-slider">Face Opacity:</label>
         <input type="range" id="face-opacity-slider" min="0" max="1" step="0.05" value="0.9">
 
-	<!-- Add New Color Scheme Dropdown -->
-	<label for="color-scheme-select">Color Scheme:</label>
-	<select id="color-scheme-select"></select>
-
-
-        <!-- Optional Controls (Initially hidden/commented if not implemented) -->
-        <!--
-        <label for="show-edges-toggle">Show Edges:</label>
-        <input type="checkbox" id="show-edges-toggle" checked>
-
-        <label for="show-vertices-toggle">Show Vertices:</label>
-        <input type="checkbox" id="show-vertices-toggle">
-        -->
+        <!-- Add New Color Scheme Dropdown -->
+        <label for="color-scheme-select">Color Scheme:</label>
+        <select id="color-scheme-select"></select>
+        
+        <!-- New Controls for Vertex Emphasis -->
+        <label for="vertex-emphasis-toggle">Emphasize Vertices:</label>
+        <input type="checkbox" id="vertex-emphasis-toggle">
+        
+        <label for="vertex-color-picker">Vertex Color:</label>
+        <input type="color" id="vertex-color-picker" value="#000000" disabled> <!-- Default: Black -->
+        
+        <!-- Autorotation Toggle Button -->
+        <button id="autorotate-button">Start Autorotation</button>
 
         <button id="export-button">Export PNG</button>
+        <button id="export-gif-button">Export GIF</button>
+        
         <p id="loading-status" style="display: none; color: orange;">Loading...</p>
         <p id="error-message" style="display: none; color: red;"></p>
     </div>
@@ -41,7 +43,6 @@
     <canvas id="viewer-canvas"></canvas>
 
     <!-- Import Three.js and Controls -->
-    <!-- Option 1: Local Files -->
     <script type="importmap">
         {
             "imports": {
@@ -50,22 +51,8 @@
             }
         }
     </script>
-    <!-- Option 2: CDN (Example) -->
-    <!--
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@<version>/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@<version>/examples/jsm/"
-            }
-        }
-    </script>
-     Replace <version> with a specific three.js version e.g., 0.158.0
-    -->
-
 
     <!-- Main Application Logic -->
     <script type="module" src="js/main.js"></script>
-
 </body>
 </html>

@@ -1,21 +1,25 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Import BufferGeometryUtils for vertex merging
-//import { BufferGeometryUtils } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 
 let scene, camera, renderer, controls;
 let currentPolytopeMesh = null; // Mesh for faces using multi-material groups
 let currentEdgesMesh = null;    // LineSegments mesh for edges
+let currentVerticesMesh = null; // Group of spheres for vertices
 let faceMaterials = [];         // Array of MeshStandardMaterial for faces
 let edgeMaterial;               // Single LineBasicMaterial for edges
+let vertexMaterial;             // Material for vertex spheres
 let isViewerReady = false;      // Flag to check if mesh exists and is ready for updates
+let autoRotationEnabled = false; // Flag for autorotation
+let captureFrameFunction = null; // Function to capture frames for GIF recording
 
 // --- Constants ---
 // Tolerance for merging vertices. Adjust carefully if needed.
 // Smaller values are less aggressive but might not fix all gaps.
 // Larger values might distort the geometry. Start small.
 const MERGE_VERTEX_TOLERANCE = 1e-3; // e.g., 0.000001 units
+const VERTEX_SIZE = 0.03 //The size of the vertices.
 
 // --- Initialization ---
 export function init(canvas) {
@@ -43,9 +47,11 @@ export function init(canvas) {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
     const headLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    // position on the camera’s +Z axis so it always points “forward”
+    // position on the camera's +Z axis so it always points "forward"
     headLight.position.set(0, 0, 1);
     camera.add(headLight);
+    scene.add(camera); // Add camera to scene to ensure headlight works
+    headLight.visible = false
 
     // Controls
     controls = new OrbitControls(camera, renderer.domElement);
@@ -55,6 +61,11 @@ export function init(canvas) {
 
     // Edge Material
     edgeMaterial = new THREE.LineBasicMaterial({ color: 0x1a1a1a });
+
+    // Vertex Material - for the spheres
+    vertexMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0x000000
+    });
 
     // Event Listeners & Startup
     window.addEventListener('resize', onWindowResize);
@@ -130,80 +141,6 @@ function triangulateFaces(originalFacesData) {
     return { indices: triangulatedIndices, groups: geometryGroups };
 }
 
-/**
- * MINIMAL TRIANGULATION: Handles ONLY 3-vertex (tris) and 4-vertex (quads) faces.
- * Skips faces with 5+ vertices.
- * Assumes convex faces.
- * @param {number[][]} originalFacesData - Array of arrays of vertex indices.
- * @returns {{indices: number[], groups: {start: number, count: number, materialIndex: number}[]}} Object containing triangulated indices and geometry groups.
- */
-function minimalTriangulateQuadsAndTris(originalFacesData) {
-    const triangulatedIndices = [];
-    const geometryGroups = [];
-    let vertexIndexOffset = 0;
-    let validMaterialIndex = 0; // Index for materials corresponding to processed faces
-
-    if (!originalFacesData || !Array.isArray(originalFacesData)) {
-        console.error("Invalid originalFacesData provided to minimalTriangulateQuadsAndTris.");
-        return { indices: [], groups: [] };
-    }
-
-    originalFacesData.forEach((originalFaceVertexIndices, faceIdx) => {
-        if (!originalFaceVertexIndices || !Array.isArray(originalFaceVertexIndices)) {
-             console.warn(`Skipping face ${faceIdx}: Invalid face data.`);
-             return;
-        }
-
-        const numVerts = originalFaceVertexIndices.length;
-        let trianglesAddedCount = 0;
-        const groupStartIndex = vertexIndexOffset;
-
-        if (numVerts === 3) {
-            // It's already a triangle
-            const [v0, v1, v2] = originalFaceVertexIndices;
-            // Basic index validation
-            if (typeof v0 === 'number' && typeof v1 === 'number' && typeof v2 === 'number') {
-                 triangulatedIndices.push(v0, v1, v2);
-                 trianglesAddedCount = 1;
-                 vertexIndexOffset += 3;
-            } else {
-                console.error(`Invalid index in triangle face ${faceIdx}:`, originalFaceVertexIndices);
-            }
-
-        } else if (numVerts === 4) {
-            // It's a quad, split into two triangles: (v0, v1, v2) and (v0, v2, v3)
-            const [v0, v1, v2, v3] = originalFaceVertexIndices;
-             // Basic index validation
-            if (typeof v0 === 'number' && typeof v1 === 'number' && typeof v2 === 'number' && typeof v3 === 'number') {
-                triangulatedIndices.push(v0, v1, v2); // First triangle
-                triangulatedIndices.push(v0, v2, v3); // Second triangle
-                trianglesAddedCount = 2;
-                vertexIndexOffset += 6; // 3 indices * 2 triangles
-            } else {
-                 console.error(`Invalid index in quad face ${faceIdx}:`, originalFaceVertexIndices);
-            }
-
-        } else {
-            // --- This function ONLY handles tris and quads ---
-            console.warn(`Skipping face ${faceIdx}: Has ${numVerts} vertices. This minimal function only handles 3 or 4.`);
-            return; // Skip this face entirely, do not add a group/material
-        }
-
-        // Add a group ONLY if triangles were successfully added
-        if (trianglesAddedCount > 0) {
-            const vertexCountForGroup = trianglesAddedCount * 3;
-            geometryGroups.push({
-                start: groupStartIndex,
-                count: vertexCountForGroup,
-                materialIndex: validMaterialIndex
-            });
-            validMaterialIndex++; // Increment the material index only for processed faces
-        }
-    });
-
-    return { indices: triangulatedIndices, groups: geometryGroups };
-}
-
 // --- Core Update Function ---
 /** Creates/updates the face and edge meshes for the given polytope data. */
 export function updatePolytopeMesh(polytopeData) {
@@ -220,6 +157,20 @@ export function updatePolytopeMesh(polytopeData) {
         scene.remove(currentEdgesMesh);
         currentEdgesMesh.geometry.dispose();
         currentEdgesMesh = null;
+    }
+    if (currentVerticesMesh) {
+        scene.remove(currentVerticesMesh);
+        if (currentVerticesMesh.isGroup) {
+            // Clean up group of sphere meshes
+            currentVerticesMesh.traverse(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+        } else if (currentVerticesMesh.geometry) {
+            // Clean up single mesh
+            currentVerticesMesh.geometry.dispose();
+        }
+        currentVerticesMesh = null;
     }
     faceMaterials = []; // Reset materials array for the new polytope
 
@@ -272,7 +223,6 @@ export function updatePolytopeMesh(polytopeData) {
     // Compute normals BEFORE merging, as merging can change vertex count/indices
     faceGeometry.computeVertexNormals();
 
-
     // --- Vertex Merging (Attempt to fix float precision gaps) ---
     let finalFaceGeometry = faceGeometry; // Use original by default
     let mergeSuccess = false;
@@ -294,13 +244,33 @@ export function updatePolytopeMesh(polytopeData) {
         // Fallback to using the original geometry
         finalFaceGeometry = faceGeometry;
     }
-    // -------------------------------------------------------------
-
 
     // --- Create Face Mesh ---
     currentPolytopeMesh = new THREE.Mesh(finalFaceGeometry, faceMaterials); // Use final geometry (merged or original)
     scene.add(currentPolytopeMesh);
 
+    // --- Create Vertices as Spheres ---
+    if (polytopeData.vertices && polytopeData.vertices.length > 0) {
+        // Create a small sphere geometry for each vertex
+        const sphereGeometry = new THREE.SphereGeometry(VERTEX_SIZE, 8, 8);
+        
+        // Create a group to hold all vertex spheres
+        const verticesGroup = new THREE.Group();
+        
+        // Create and position a sphere at each vertex
+        for (let i = 0; i < polytopeData.vertices.length; i++) {
+            const vertex = polytopeData.vertices[i];
+            const sphereMaterial = vertexMaterial.clone(); // Clone material for each sphere
+            const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.set(parseFloat(vertex[0]), parseFloat(vertex[1]), parseFloat(vertex[2]));
+            verticesGroup.add(sphere);
+        }
+        
+        // Store the group for later access
+        currentVerticesMesh = verticesGroup;
+        currentVerticesMesh.visible = false; // Initially hidden
+        scene.add(currentVerticesMesh);
+    }
 
     // --- Create Edge Geometry (Based on ORIGINAL faces) ---
     const edgeGeometry = new THREE.BufferGeometry();
@@ -335,7 +305,7 @@ export function updatePolytopeMesh(polytopeData) {
     // --- Finalize Scene Setup ---
     adjustCameraToObject(currentPolytopeMesh);
     isViewerReady = true;
-    console.log("Polytope mesh and edges updated in scene.");
+    console.log("Polytope mesh, edges, and vertices updated in scene.");
 }
 
 // --- Camera Adjustment ---
@@ -374,7 +344,6 @@ function adjustCameraToObject(targetObject) {
     }
 }
 
-
 // --- Style Updates ---
 export function applyColorScheme(schemeColors, singleHexColor) {
     if (!isReady()) return;
@@ -406,6 +375,74 @@ export function updateFaceOpacity(opacityValue) {
             material.opacity = clampedOpacity;
         }
     });
+}
+
+export function toggleVertexEmphasis(enabled) {
+    if (!currentVerticesMesh) return;
+    currentVerticesMesh.visible = enabled;
+}
+
+export function updateVertexSize(size) {
+    if (!currentVerticesMesh || !currentVerticesMesh.isGroup) return;
+    
+    // Store current rotation and visibility
+    const currentRotation = new THREE.Euler().copy(currentVerticesMesh.rotation);
+    const visible = currentVerticesMesh.visible;
+    const currentColor = vertexMaterial.color.clone();
+    
+    // Remove old vertex group
+    scene.remove(currentVerticesMesh);
+    
+    // Create new sphere geometry with updated size
+    const sphereGeometry = new THREE.SphereGeometry(size, 8, 8);
+    
+    // Create a new group
+    const verticesGroup = new THREE.Group();
+    
+    // Recreate spheres with new size but keep positions
+    currentVerticesMesh.children.forEach(oldSphere => {
+        const newMaterial = new THREE.MeshBasicMaterial({ color: currentColor });
+        const newSphere = new THREE.Mesh(sphereGeometry, newMaterial);
+        newSphere.position.copy(oldSphere.position);
+        verticesGroup.add(newSphere);
+    });
+    
+    // Clean up old meshes
+    currentVerticesMesh.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+    });
+    
+    // Set up the new group
+    verticesGroup.rotation.copy(currentRotation);
+    verticesGroup.visible = visible;
+    currentVerticesMesh = verticesGroup;
+    scene.add(currentVerticesMesh);
+}
+
+export function updateVertexColor(color) {
+    if (!currentVerticesMesh || !currentVerticesMesh.isGroup) return;
+    
+    // Update material color for each sphere
+    currentVerticesMesh.children.forEach(sphere => {
+        if (sphere.material) {
+            sphere.material.color.set(color);
+        }
+    });
+    
+    // Save color in vertex material for future meshes
+    vertexMaterial.color.set(color);
+}
+
+export function toggleAutorotation(enabled) {
+    autoRotationEnabled = enabled;
+    
+    // If disabling autorotation, reset rotation to prevent weird angles
+    if (!enabled && currentPolytopeMesh) {
+        currentPolytopeMesh.rotation.set(0, 0, 0);
+        if (currentEdgesMesh) currentEdgesMesh.rotation.set(0, 0, 0);
+        if (currentVerticesMesh) currentVerticesMesh.rotation.set(0, 0, 0);
+    }
 }
 
 // --- Export ---
@@ -447,7 +484,155 @@ function onWindowResize() {
 }
 
 function animate() {
-    requestAnimationFrame(animate);
-    if (controls) controls.update();
-    if (renderer && scene && camera) renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+  
+  // Update controls
+  if (controls) controls.update();
+  
+  // Handle autorotation if enabled
+  if (autoRotationEnabled && currentPolytopeMesh) {
+    // Rotate around multiple axes for a more interesting effect
+    currentPolytopeMesh.rotation.y += 0.005;  // Primary rotation
+    currentPolytopeMesh.rotation.x += 0.002;  // Slight tilt on X axis
+    currentPolytopeMesh.rotation.z += 0.001;  // Minimal rotation on Z axis
+    
+    // Apply the same rotation to edges and vertices to keep them aligned
+    if (currentEdgesMesh) {
+      currentEdgesMesh.rotation.copy(currentPolytopeMesh.rotation);
+    }
+    if (currentVerticesMesh) {
+      currentVerticesMesh.rotation.copy(currentPolytopeMesh.rotation);
+    }
+  }
+  
+  // Capture frame if recording
+  if (captureFrameFunction) {
+    const continueCapturing = captureFrameFunction();
+    if (!continueCapturing) {
+      captureFrameFunction = null;
+    }
+  }
+  
+  // Render the scene
+  if (renderer && scene && camera) renderer.render(scene, camera);
+}
+
+// In viewer.js
+export function exportToGIF(duration = 3, fps = 15) {
+  console.log("Starting GIF export process...");
+  
+  if (!renderer || !scene || !camera) {
+    console.error("Cannot export: Viewer not initialized.");
+    alert("Cannot export GIF: Viewer not ready.");
+    return;
+  }
+  
+  // Check if GIF.js is available
+  if (typeof GIF === 'undefined') {
+    console.error("GIF.js library not loaded.");
+    alert("GIF export requires the GIF.js library which isn't loaded correctly.");
+    return;
+  }
+  
+  // Create progress indicator
+  const progressDiv = document.createElement('div');
+  progressDiv.style.position = 'absolute';
+  progressDiv.style.top = '50%';
+  progressDiv.style.left = '50%';
+  progressDiv.style.transform = 'translate(-50%, -50%)';
+  progressDiv.style.padding = '20px';
+  progressDiv.style.background = 'rgba(0,0,0,0.7)';
+  progressDiv.style.color = 'white';
+  progressDiv.style.borderRadius = '5px';
+  progressDiv.style.zIndex = '1000';
+  progressDiv.textContent = 'Recording frames...';
+  document.body.appendChild(progressDiv);
+  
+  // The current rotation states
+  const wasAutorotating = autoRotationEnabled;
+  
+  // Force enable autorotation
+  toggleAutorotation(true);
+  
+  // Reset rotations for a clean start
+  if (currentPolytopeMesh) currentPolytopeMesh.rotation.set(0, 0, 0);
+  if (currentEdgesMesh) currentEdgesMesh.rotation.set(0, 0, 0);
+  if (currentVerticesMesh) currentVerticesMesh.rotation.set(0, 0, 0);
+  
+  // Create a GIF recorder
+  const gifRecorder = new GIF({
+    workers: 2,
+    quality: 10,
+    width: renderer.domElement.width,
+    height: renderer.domElement.height,
+    workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
+  });
+  
+  // Handle GIF completion
+  gifRecorder.on('finished', function(blob) {
+    console.log("GIF processing complete!");
+    
+    // Remove progress indicator
+    document.body.removeChild(progressDiv);
+    
+    // Restore original state
+    if (!wasAutorotating) {
+      toggleAutorotation(false);
+    }
+    
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'polytope_animation.gif';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  });
+  
+  // Handle GIF progress
+  gifRecorder.on('progress', function(p) {
+    progressDiv.textContent = `Processing GIF: ${Math.round(p * 100)}%`;
+  });
+  
+  // Capture frames
+  const totalFrames = fps * duration;
+  let framesCaptured = 0;
+  
+  function captureFrame() {
+    // Render current frame
+    renderer.render(scene, camera);
+    
+    // Add frame to the GIF
+    gifRecorder.addFrame(renderer.domElement, { copy: true, delay: 1000 / fps });
+    framesCaptured++;
+    progressDiv.textContent = `Recording: ${Math.round((framesCaptured / totalFrames) * 100)}%`;
+    
+    // Check if we need more frames
+    if (framesCaptured < totalFrames) {
+      // Continue animation
+      currentPolytopeMesh.rotation.y += 0.005 * (360 / (fps * duration)) * Math.PI / 180;
+      currentPolytopeMesh.rotation.x += 0.002 * (360 / (fps * duration)) * Math.PI / 180;
+      currentPolytopeMesh.rotation.z += 0.001 * (360 / (fps * duration)) * Math.PI / 180;
+      
+      // Apply to edges and vertices
+      if (currentEdgesMesh) currentEdgesMesh.rotation.copy(currentPolytopeMesh.rotation);
+      if (currentVerticesMesh) currentVerticesMesh.rotation.copy(currentPolytopeMesh.rotation);
+      
+      // Schedule next frame
+      setTimeout(captureFrame, 1000 / fps);
+    } else {
+      // We're done capturing frames
+      console.log("Finished capturing frames, rendering GIF");
+      progressDiv.textContent = "Processing GIF...";
+      gifRecorder.render();
+    }
+  }
+  
+  // Start capturing
+  console.log("Starting frame capture");
+  captureFrame();
 }

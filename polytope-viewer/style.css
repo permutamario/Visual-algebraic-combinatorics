@@ -41,6 +41,57 @@ body {
     cursor: pointer;
 }
 
+#controls input[type="checkbox"] {
+    width: auto; /* Don't stretch checkboxes */
+    margin-right: 5px;
+}
+
+/* Control groups for related settings */
+.control-group {
+    border-top: 1px solid #ddd;
+    padding-top: 10px;
+    margin-top: 5px;
+}
+
+/* Style for disabled controls and their labels */
+#controls input:disabled,
+#controls select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+label[for="vertex-size-slider"],
+label[for="vertex-color-picker"] {
+    transition: opacity 0.3s;
+}
+
+/* Buttons styling */
+#controls button {
+    background-color: #4285f4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+#controls button:hover {
+    background-color: #3367d6;
+}
+
+#autorotate-button {
+    background-color: #34a853;
+}
+
+#autorotate-button:hover {
+    background-color: #2d8d46;
+}
+
+#export-button {
+    margin-top: 20px;
+}
 
 #viewer-canvas {
     flex-grow: 1; /* Canvas takes remaining space */
@@ -51,4 +102,28 @@ body {
 #error-message {
     margin-top: 15px;
     font-weight: bold;
+}
+
+#loading-status {
+    color: #ff9800;
+}
+
+#error-message {
+    color: #f44336;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    body {
+        flex-direction: column;
+    }
+    
+    #controls {
+        width: 100%;
+        max-height: 40vh;
+    }
+    
+    #viewer-canvas {
+        height: 60vh;
+    }
 }
