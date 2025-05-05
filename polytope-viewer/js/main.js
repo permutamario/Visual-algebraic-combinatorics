@@ -138,7 +138,7 @@ async function initMobileApp() {
         if (!response.ok) {
             throw new Error(`HTTP error fetching list! Status: ${response.status}`);
         }
-        availablePolytopesList = await response.json();
+        availablePolytopesList = await fetchPolytopeList();
         
         if (!Array.isArray(availablePolytopesList) || availablePolytopesList.length === 0) {
             throw new Error("No valid polytopes found in the manifest file.");
