@@ -4,13 +4,12 @@
 
 const POLYTOPE_LIST_URL = './polytopes/data/polytope_list.json';
 
-
 // Check if the device is mobile
 export function isMobileDevice() {
     return window.innerWidth <= 768;
 }
 
-// Initialize the mobile UI with just the polytope selector
+// Initialize the mobile UI with just the polytope selector and options menu
 export function initMobileFeatures() {
     console.log("Initializing mobile UI");
     
@@ -19,153 +18,128 @@ export function initMobileFeatures() {
     mobileHeader.id = 'mobile-header';
     mobileHeader.className = 'mobile-header';
     
-    // Create container for the controls
+    // Create container for controls
     const container = document.createElement('div');
     container.className = 'mobile-header-container';
     
-    // Create dropdown for polytope selection
+    // Polytope dropdown
     const mobileSelect = document.createElement('select');
     mobileSelect.id = 'mobile-polytope-select';
-    
-    // Create label
     const label = document.createElement('label');
     label.textContent = 'Select Polytope:';
     label.setAttribute('for', 'mobile-polytope-select');
-    
-    // Assemble the elements
     container.appendChild(label);
     container.appendChild(mobileSelect);
     mobileHeader.appendChild(container);
-    
-    // Add the header to the document
     document.body.insertBefore(mobileHeader, document.body.firstChild);
-    
-    // Make sure the header is visible
     mobileHeader.style.display = 'flex';
-    
+
+    // ===== Mobile Options Button & Menu =====
+    const optionsButton = document.createElement('button');
+    optionsButton.id = 'mobile-options-button';
+    optionsButton.textContent = 'Options';
+    document.body.appendChild(optionsButton);
+
+    const optionsMenu = document.createElement('div');
+    optionsMenu.id = 'mobile-options-menu';
+
+    // Autorotate toggle
+    const autoLabel = document.createElement('label');
+    autoLabel.textContent = 'Animate:';
+    const autoToggle = document.createElement('input');
+    autoToggle.type = 'checkbox';
+    autoToggle.id = 'mobile-autorotate-toggle';
+    autoToggle.checked = true;
+    autoLabel.prepend(autoToggle);
+    optionsMenu.appendChild(autoLabel);
+
+    // Color picker
+    const colorLabel = document.createElement('label');
+    colorLabel.setAttribute('for', 'mobile-color-picker');
+    colorLabel.textContent = 'Color:';
+    const colorPicker = document.createElement('input');
+    colorPicker.type = 'color';
+    colorPicker.id = 'mobile-color-picker';
+    colorPicker.value = '#4285f4';
+    optionsMenu.appendChild(colorLabel);
+    optionsMenu.appendChild(colorPicker);
+
+    document.body.appendChild(optionsMenu);
+
+    // Toggle menu
+    optionsButton.addEventListener('click', () => {
+        optionsMenu.style.display = optionsMenu.style.display === 'block' ? 'none' : 'block';
+    });
+
+    // Dispatch custom events
+    autoToggle.addEventListener('change', () => {
+        document.dispatchEvent(new CustomEvent('mobileAutorotateChange', { detail: autoToggle.checked }));
+    });
+    colorPicker.addEventListener('change', () => {
+        document.dispatchEvent(new CustomEvent('mobileColorChange', { detail: colorPicker.value }));
+    });
+    // ===== End Mobile Options =====
+
     console.log("Mobile UI initialized");
 }
 
 // Optimize Three.js renderer for mobile
 export function optimizeRendererForMobile(renderer) {
     if (!renderer) return;
-    
-    // Use a lower pixel ratio for better performance
-    //const lowerRatio = Math.min(window.devicePixelRatio, 1.5);
-    //renderer.setPixelRatio(lowerRatio);
-    
     return renderer;
 }
 
 // Touch control enhancements for OrbitControls
 export function enhanceTouchControls(controls) {
     if (!controls) return;
-    
-    // Make rotation and zooming more touch-friendly
     controls.rotateSpeed = 0.7;
     controls.zoomSpeed = 0.8;
-    
     return controls;
 }
 
-// Show mobile loading indicator
-export function showMobileLoading(show) {
-    // Create loading indicator if it doesn't exist
-    let loader = document.querySelector('.mobile-loader');
-    
-    if (!loader && show) {
-        loader = document.createElement('div');
-        loader.className = 'mobile-loader';
-        document.body.appendChild(loader);
-    }
-    
-    if (loader) {
-        loader.style.display = show ? 'block' : 'none';
-    }
-}
-
-// Show error message on mobile
+// Show an error message on mobile
 export function showMobileError(message) {
     let errorElement = document.getElementById('mobile-error');
-    
     if (!errorElement) {
         errorElement = document.createElement('div');
         errorElement.id = 'mobile-error';
         errorElement.className = 'mobile-error';
         document.body.appendChild(errorElement);
     }
-    
     errorElement.textContent = message;
     errorElement.style.display = 'block';
 }
 
-// For mobile: Enhanced fetch with better error handling
+// Show a loading indicator on mobile
+export function showMobileLoading(message = 'Loading...') {
+    let loader = document.getElementById('mobile-loading');
+    if (!loader) {
+        loader = document.createElement('div');
+        loader.id = 'mobile-loading';
+        loader.className = 'mobile-loading';
+        document.body.appendChild(loader);
+    }
+    loader.textContent = message;
+    loader.style.display = 'block';
+}
+
+// Hide the mobile loading indicator
+export function hideMobileLoading() {
+    const loader = document.getElementById('mobile-loading');
+    if (loader) loader.style.display = 'none';
+}
+
+// Enhanced fetch for polytope list with error handling
 export async function fetchPolytopeList() {
-    console.log("Mobile: Attempting to fetch polytope list");
-    
     try {
-        // Log the exact URL being used
-        const resolvedUrl = new URL(POLYTOPE_LIST_URL, window.location.href).href;
-        console.log(`Mobile: Resolved full URL: ${resolvedUrl}`);
-        
-        // Add cache-busting query parameter
-        const urlWithCacheBust = `${resolvedUrl}?_=${new Date().getTime()}`;
-        console.log(`Mobile: Using URL with cache-busting: ${urlWithCacheBust}`);
-        
-        // Perform the fetch with explicit mode and credentials
-        const response = await fetch(urlWithCacheBust, {
-            method: 'GET',
-            mode: 'cors',
-            cache: 'no-cache',
-            credentials: 'same-origin',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            console.error(`Mobile: HTTP error ${response.status}: ${response.statusText}`);
-            throw new Error(`Network error: ${response.status}`);
-        }
-        
-        // Get the raw text first for debugging
-        const rawText = await response.text();
-        console.log(`Mobile: Raw response text (first 100 chars): ${rawText.substring(0, 100)}`);
-        
-        // Try to parse the JSON
-        let data;
-        try {
-            data = JSON.parse(rawText);
-        } catch (parseError) {
-            console.error("Mobile: JSON parse error:", parseError);
-            console.log("Mobile: Raw response that failed to parse:", rawText);
-            throw new Error("Failed to parse JSON response");
-        }
-        
-        // Validate the data
-        if (!Array.isArray(data)) {
-            console.error("Mobile: Response is not an array:", data);
-            throw new Error("Polytope list is not an array");
-        }
-        
-        if (data.length === 0) {
-            console.warn("Mobile: Polytope list is empty");
-        } else {
-            console.log(`Mobile: Successfully loaded ${data.length} polytopes`);
-        }
-        
+        const response = await fetch(POLYTOPE_LIST_URL);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const text = await response.text();
+        const data = JSON.parse(text);
+        if (!Array.isArray(data)) throw new Error('Invalid JSON');
         return data;
-    } catch (error) {
-        console.error("Mobile: Error fetching polytope list:", error);
-        
-        // Try fallback to a hardcoded list if fetch fails
-        console.log("Mobile: Using fallback polytope list");
-        return [
-            "cube.json",
-            "dodecahedron.json",
-            "icosahedron.json",
-            "octahedron.json",
-            "tetrahedron.json"
-        ];
+    } catch (err) {
+        console.error('Mobile fetch error:', err);
+        return ['cube.json','dodecahedron.json','icosahedron.json','octahedron.json','tetrahedron.json'];
     }
 }

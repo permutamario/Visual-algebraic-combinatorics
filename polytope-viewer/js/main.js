@@ -7,6 +7,7 @@ import * as Loader from './loader.js';
 import * as Viewer from './viewer.js';
 import { isMobileDevice, initMobileFeatures, optimizeRendererForMobile, enhanceTouchControls, showMobileLoading, showMobileError, fetchPolytopeList } from './mobile.js';
 
+
 const POLYTOPE_LIST_URL = './polytopes/data/polytope_list.json';
 
 // Define Color Schemes (including a new colorblind-friendly option)
