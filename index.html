@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Welcome</title>
+  <style>
+    body {
+      display: flex;
+      height: 100vh;
+      margin: 0;
+      align-items: center;
+      justify-content: center;
+      font-family: sans-serif;
+      background: #f5f5f5;
+    }
+    button {
+      padding: 1rem 2rem;
+      font-size: 1.25rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 0.5rem;
+      background-color: #007acc;
+      color: white;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #005fa3;
+    }
+  </style>
+</head>
+<body>
+  <button id="open-viewer">Polytope Viewer</button>
+
+  <script>
+    document
+      .getElementById('open-viewer')
+      .addEventListener('click', () => {
+        // Navigate into the polytope-viewer folder
+        window.location.href = 'polytope-viewer/index.html';
+      });
+  </script>
+</body>
+</html>
