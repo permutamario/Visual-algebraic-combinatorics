@@ -5,7 +5,7 @@
 import * as UI from './ui.js';
 import * as Loader from './loader.js';
 import * as Viewer from './viewer.js';
-import { isMobileDevice, initMobileFeatures, optimizeRendererForMobile, enhanceTouchControls, showMobileLoading, showMobileError } from './mobile.js';
+import { isMobileDevice, initMobileFeatures, optimizeRendererForMobile, enhanceTouchControls, showMobileLoading, showMobileError, fetchPolytopeList } from './mobile.js';
 
 const POLYTOPE_LIST_URL = './polytopes/data/polytope_list.json';
 

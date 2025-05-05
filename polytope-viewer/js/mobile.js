@@ -2,6 +2,9 @@
  * mobile.js - Mobile-specific functionality for the polytope viewer
  */
 
+const POLYTOPE_LIST_URL = './polytopes/data/polytope_list.json';
+
+
 // Check if the device is mobile
 export function isMobileDevice() {
     return window.innerWidth <= 768;
@@ -48,8 +51,8 @@ export function optimizeRendererForMobile(renderer) {
     if (!renderer) return;
     
     // Use a lower pixel ratio for better performance
-    const lowerRatio = Math.min(window.devicePixelRatio, 1.5);
-    renderer.setPixelRatio(lowerRatio);
+    //const lowerRatio = Math.min(window.devicePixelRatio, 1.5);
+    //renderer.setPixelRatio(lowerRatio);
     
     return renderer;
 }
@@ -97,7 +100,7 @@ export function showMobileError(message) {
 }
 
 // For mobile: Enhanced fetch with better error handling
-async function fetchPolytopeList() {
+export async function fetchPolytopeList() {
     console.log("Mobile: Attempting to fetch polytope list");
     
     try {

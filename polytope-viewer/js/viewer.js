@@ -45,7 +45,7 @@ export function init(canvas) {
         powerPreference: 'high-performance' // Request high performance GPU
     });
     renderer.setSize(initialWidth, initialHeight);
-    renderer.setPixelRatio(isMobileDevice() ? Math.min(1.5, window.devicePixelRatio) : window.devicePixelRatio);
+    renderer.setPixelRatio(isMobileDevice() ? Math.min(2, window.devicePixelRatio) : window.devicePixelRatio);
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
