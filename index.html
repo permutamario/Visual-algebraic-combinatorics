@@ -1,86 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Permutahedron</title>
-  <style>
-    body {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      margin: 0;
-      align-items: center;
-      justify-content: center;
-      font-family: sans-serif;
-      background: #ffffff;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    
-    h1 {
-      margin-top: 0;
-      margin-bottom: 20px;
-      color: #333;
-      text-align: center;
-    }
-    
-    .video-container {
-      width: 100%;
-      max-width: 800px;
-      margin-bottom: 30px;
-      flex-grow: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    video {
-      width: 100%;
-      max-height: 70vh;
-      border-radius: 8px;
-      box-shadow: none;
-    }
-    
-    button {
-      padding: 1.5rem 3rem;
-      font-size: 1.5rem;
-      cursor: pointer;
-      border: none;
-      border-radius: 0.5rem;
-      background-color: #007acc;
-      color: white;
-      transition: background-color 0.2s;
-    }
-    
-    button:hover {
-      background-color: #005fa3;
-    }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visualization Apps</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>Hi, I am a permutahedron!</h1>
-  
-  <div class="video-container">
-    <!-- Replace "your-video.mp4" with the path to your actual video file -->
-    <video controls autoplay loop>
-      <source src="I-am-a-permutahedron.mp4" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-  </div>
-  
-  <div style="margin-top: -20px; margin-bottom: 60px; display: flex; gap: 1rem;">
-    <button id="open-viewer">Polytope Viewer</button>
-    <button id="open-sona">Sona</button>
-  </div>
+  <div class="container">
+    <h1>Visualization Apps</h1>
 
-  <script>
-    document.getElementById('open-viewer').addEventListener('click', () => {
-      window.location.href = 'https://permutamario.github.io/polytope-viewer/';
-    });
-    document.getElementById('open-sona').addEventListener('click', () => {
-      window.location.href = 'https://permutamario.github.io/mirror-curve/';
-    });
-  </script>
+    <div class="app-panel">
+      <h2>Polytope Viewer</h2>
+      <p>A visualizer for 3D polytopes in algebraic combinatorics.</p>
+      <a href="https://permutamario.github.io/polytope-viewer" class="visit-button" target="_blank">Visit Polytope Viewer</a>
+    </div>
+
+    <div class="app-panel">
+      <h2>Mirror Curves</h2>
+      <p>Creates mirror curves, mathematical models inspired by sand art traditions in Africa, India, and Oceania.</p>
+      <a href="https://permutamario.github.io/mirror-curve" class="visit-button" target="_blank">Visit Mirror Curves</a>
+    </div>
+
+  </div>
 </body>
 </html>
