@@ -41,16 +41,24 @@ body {
   border-radius: 12px;
   padding: 20px;
   text-align: center;
-  text-decoration: none; /* Remove underline from links */
-  color: white;
+  text-decoration: none; /* Remove underline */
+  color: inherit; /* Inherit parent color (white) */
   transition: transform 0.3s, border-color 0.3s, background-color 0.3s;
+  -webkit-tap-highlight-color: transparent; /* Remove mobile tap flash */
 }
 
-/* Hover effect */
-.app-panel:hover {
+/* Hover and focus effects */
+.app-panel:hover,
+.app-panel:focus {
   transform: translateY(-5px);
   border-color: #00ffff;
   background-color: #2a2a2a;
+  outline: none; /* Remove ugly focus outline */
+}
+
+/* Prevent visited link color from changing */
+.app-panel:visited {
+  color: inherit;
 }
 
 /* Panel titles */
