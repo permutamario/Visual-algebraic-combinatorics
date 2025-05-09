@@ -33,20 +33,24 @@ body {
   font-size: 2em;
 }
 
-/* Panel styling */
+/* App panels are now links */
 .app-panel {
+  display: block;
   background-color: #1e1e1e;
   border: 2px solid white;
   border-radius: 12px;
   padding: 20px;
   text-align: center;
-  transition: transform 0.3s, border-color 0.3s;
+  text-decoration: none; /* Remove underline from links */
+  color: white;
+  transition: transform 0.3s, border-color 0.3s, background-color 0.3s;
 }
 
 /* Hover effect */
 .app-panel:hover {
   transform: translateY(-5px);
   border-color: #00ffff;
+  background-color: #2a2a2a;
 }
 
 /* Panel titles */
@@ -57,26 +61,9 @@ body {
 
 /* Panel description */
 .app-panel p {
-  margin-bottom: 20px;
+  margin-bottom: 0;
   font-size: 1em;
   color: #bbbbbb;
-}
-
-/* Visit button */
-.visit-button {
-  display: inline-block;
-  padding: 10px 20px;
-  border: 2px solid white;
-  border-radius: 8px;
-  color: white;
-  text-decoration: none;
-  transition: background-color 0.3s, color 0.3s;
-}
-
-/* Button hover */
-.visit-button:hover {
-  background-color: white;
-  color: black;
 }
 
 /* Mobile responsiveness */
@@ -87,9 +74,5 @@ body {
 
   .app-panel {
     padding: 15px;
-  }
-
-  .visit-button {
-    width: 100%;
   }
 }
