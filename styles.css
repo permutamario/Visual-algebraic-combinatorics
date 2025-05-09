@@ -1,0 +1,95 @@
+/* Basic Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Dark mode background and text */
+body {
+  background-color: #121212;
+  color: #ffffff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+/* Main container */
+.container {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Page title */
+.container > h1 {
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 2em;
+}
+
+/* Panel styling */
+.app-panel {
+  background-color: #1e1e1e;
+  border: 2px solid white;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  transition: transform 0.3s, border-color 0.3s;
+}
+
+/* Hover effect */
+.app-panel:hover {
+  transform: translateY(-5px);
+  border-color: #00ffff;
+}
+
+/* Panel titles */
+.app-panel h2 {
+  margin-bottom: 10px;
+  font-size: 1.5em;
+}
+
+/* Panel description */
+.app-panel p {
+  margin-bottom: 20px;
+  font-size: 1em;
+  color: #bbbbbb;
+}
+
+/* Visit button */
+.visit-button {
+  display: inline-block;
+  padding: 10px 20px;
+  border: 2px solid white;
+  border-radius: 8px;
+  color: white;
+  text-decoration: none;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Button hover */
+.visit-button:hover {
+  background-color: white;
+  color: black;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+  .container {
+    padding: 10px;
+  }
+
+  .app-panel {
+    padding: 15px;
+  }
+
+  .visit-button {
+    width: 100%;
+  }
+}
